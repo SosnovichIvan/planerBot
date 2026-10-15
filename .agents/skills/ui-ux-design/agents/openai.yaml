@@ -1,0 +1,6 @@
+interface:
+  display_name: "UI/UX Design"
+  short_description: "Design systems и UX-проверки интерфейсов"
+  default_prompt: "Use $ui-ux-design to propose and verify a UI/UX direction for this task."
+policy:
+  allow_implicit_invocation: true

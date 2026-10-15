@@ -1,0 +1,32 @@
+name: Release verification
+
+on:
+  push:
+    tags: ['*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tag format and current remote main ancestry before any build
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          bash deploy/check-release.sh "$RELEASE_TAG"
+      - name: Verify release containers
+        run: |
+          docker build --target backend -t planerbot-backend:release-verification .
+          docker run --rm planerbot-backend:release-verification pip check
+          docker build --target gateway -t planerbot-gateway:release-verification .

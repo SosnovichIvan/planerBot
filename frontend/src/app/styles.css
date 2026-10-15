@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+}
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+  --canvas: #f6f7fb;
+  --surface: #ffffff;
+  --ink: #192333;
+  --muted: #566376;
+  --line: #c4cbd7;
+  --accent: #3256c5;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #111722;
+  --surface: #1a2230;
+  --ink: #f0f3fa;
+  --muted: #b1bdd0;
+  --line: #66758e;
+  --accent: #4065d7;
+  color-scheme: dark;
+}
+
+body { margin: 0; min-width: 320px; padding-top: var(--tg-content-safe-area-inset-top, 0px); padding-bottom: var(--tg-content-safe-area-inset-bottom, 0px); }
+button, select, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+@layer components {
+  .panel { @apply rounded-2xl border border-line bg-surface p-5 sm:p-6; }
+  .button { @apply min-h-11 cursor-pointer rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:opacity-90 active:opacity-80; }
+  .icon-button { @apply flex size-11 cursor-pointer items-center justify-center rounded-xl border border-line text-2xl hover:bg-canvas active:opacity-70; }
+  .field { @apply mt-2 block min-h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink; }
+  .form-label { @apply block text-sm font-medium; }
+  .secondary-button { @apply min-h-11 cursor-pointer rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-canvas disabled:cursor-wait disabled:opacity-60; }
+  .button:disabled { @apply cursor-wait opacity-60; }
+}
