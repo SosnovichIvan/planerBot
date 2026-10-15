@@ -21,6 +21,9 @@ curl --head --fail --silent --show-error --connect-timeout 5 --max-time 15 \
     --output /dev/null https://api.telegram.org/
 docker build --target backend -t "planerbot-backend:$tag" .
 docker build --target gateway -t "planerbot-gateway:$tag" .
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+    "planerbot-backend:$tag" python -c \
+    'import http.client; c=http.client.HTTPSConnection("api.telegram.org", timeout=15); c.request("HEAD", "/"); r=c.getresponse(); assert 200 <= r.status < 400; c.close()'
 "${compose[@]}" pull db certbot
 
 # First certificate is obtained with an HTTP-only gateway, no application exposed.

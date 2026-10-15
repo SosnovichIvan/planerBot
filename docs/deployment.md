@@ -123,7 +123,7 @@ Read-only preflight VPS 2026-10-15: Let's Encrypt ACME directory доступе�
 остановки приложения при недоступности Telegram. Для запуска нужен отдельно
 согласованный рабочий маршрут/прокси; конфигурация пока предполагает прямой egress
 контейнеров. Исправление host curl само по себе не доказывает egress Docker —
-перед запуском обязательно проверить его из backend image без токена.
+release.sh дополнительно проверяет его из backend image без токена до остановки writers.
 
 Источники: [IP-сертификаты Let's Encrypt](https://letsencrypt.org/2026/03/11/shorter-certs-certbot),
 [Certbot renew/webroot](https://eff-certbot.readthedocs.io/en/stable/using.html).
