@@ -16,8 +16,9 @@
 - Проверить запуск Main Mini App по ссылке из группы в целевых клиентах.
 - Проверить права, getChatMember, my_chat_member/chat_member и идентификаторы тем.
 - Определить процесс обнаружения чатов пользователя и регистрации старых тем.
-- Закрепить версии Python/Node, aiogram/FastAPI/React и менеджеры зависимостей.
+- Закрепить версии Python/Node, aiogram/FastAPI/React, Tailwind CSS и менеджеры зависимостей.
 - Создать backend, frontend FSD, локальный PostgreSQL и Docker Compose.
+- Настроить Tailwind CSS, общие дизайн-токены и светлую/тёмную тему Telegram.
 - Добавить миграции, конфигурацию без секретов, CI lint/types/tests/coverage,
   проверку направления PR и изоляции FSD.
 

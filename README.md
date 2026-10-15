@@ -18,7 +18,8 @@ Telegram-бот и персональный календарь событий и
 - [Инструкции агентам](AGENTS.md).
 
 Предложенный стек: Python / aiogram / FastAPI, PostgreSQL,
-React / TypeScript для Telegram Mini App. Версии и зависимости фиксируются
+React / TypeScript для Telegram Mini App. Стилизация — Tailwind CSS
+(выбор пользователя). Версии и зависимости фиксируются
 при создании каркаса после проверки совместимости.
 
 ## Работа с репозиторием
