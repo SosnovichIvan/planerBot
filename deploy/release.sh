@@ -16,6 +16,9 @@ compose=(docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.
 # Validation prints no secret values; env file is data, never sourced as shell code.
 python3 deploy/validate-env.py /etc/planerbot/runtime.env
 "${compose[@]}" config --quiet
+# No token in this request. A blocked Telegram route must not stop the old app.
+curl --head --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+    --output /dev/null https://api.telegram.org/
 docker build --target backend -t "planerbot-backend:$tag" .
 docker build --target gateway -t "planerbot-gateway:$tag" .
 "${compose[@]}" pull db certbot

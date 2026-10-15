@@ -116,5 +116,14 @@ readiness API в read-only контейнере от UID 10001, pg_dump/pg_resto
 Это не доказательство доверия к будущему Let's Encrypt сертификату или работы
 всех Telegram-клиентов. На VPS эти scripts ещё не запускались.
 
+Read-only preflight VPS 2026-10-15: Let's Encrypt ACME directory доступен (200),
+но api.telegram.org по IPv4 даёт connect timeout, а IPv6 не имеет рабочего
+маршрута. Ранее установленный WARP сообщает missing registration, туннеля нет.
+Сетевые настройки не менялись. Release preflight теперь отказывает до build и
+остановки приложения при недоступности Telegram. Для запуска нужен отдельно
+согласованный рабочий маршрут/прокси; конфигурация пока предполагает прямой egress
+контейнеров. Исправление host curl само по себе не доказывает egress Docker —
+перед запуском обязательно проверить его из backend image без токена.
+
 Источники: [IP-сертификаты Let's Encrypt](https://letsencrypt.org/2026/03/11/shorter-certs-certbot),
 [Certbot renew/webroot](https://eff-certbot.readthedocs.io/en/stable/using.html).
