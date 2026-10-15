@@ -32,13 +32,13 @@ else
 fi
 
 "${compose[@]}" stop api bot worker
-"${compose[@]}" up -d --wait db
+"${compose[@]}" up -d --wait --wait-timeout 120 db
 install -d -m 700 /var/backups/planerbot
 backup="/var/backups/planerbot/$tag-$(date -u +%Y%m%dT%H%M%SZ).dump"
 "${compose[@]}" exec -T db pg_dump -U planerbot -d planerbot -Fc >"$backup"
 test -s "$backup"
 "${compose[@]}" run --rm --no-deps migrate
-"${compose[@]}" up -d --wait api
+"${compose[@]}" up -d --wait --wait-timeout 150 api
 "${compose[@]}" up -d bot worker gateway
 
 install -m 644 deploy/planerbot-cert-renew.service deploy/planerbot-cert-renew.timer /etc/systemd/system/
