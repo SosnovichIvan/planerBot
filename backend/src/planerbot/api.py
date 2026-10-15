@@ -33,6 +33,7 @@ from planerbot.event_contracts import (
 )
 from planerbot.event_repository import EventRepository
 from planerbot.events import EventService
+from planerbot.network import create_bot
 from planerbot.publications import PublicationRepository
 from planerbot.repository import ChatRepository
 from planerbot.telegram import TelegramGateway
@@ -76,7 +77,7 @@ def create_app(
     )
     token = config.bot_token.get_secret_value()
     store = ChatRepository(db)
-    telegram_bot = bot or (Bot(token) if token else None)
+    telegram_bot = bot or (create_bot(config) if token else None)
     if telegram_bot is not None:
         gateway = TelegramGateway(telegram_bot)
         access = access or ChatAccess(store, gateway, telegram_bot.id)

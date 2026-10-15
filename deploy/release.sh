@@ -12,23 +12,23 @@ git fetch origin main:refs/remotes/origin/main "refs/tags/$tag:refs/tags/$tag"
 bash deploy/check-release.sh "$tag"
 test "$(stat -c '%a:%U' /etc/planerbot/runtime.env)" = 600:root
 export RELEASE_TAG=$tag
-compose=(docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.yaml)
+compose=(docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.yaml -f deploy/proxy.yaml)
 # Validation prints no secret values; env file is data, never sourced as shell code.
 python3 deploy/validate-env.py /etc/planerbot/runtime.env
 "${compose[@]}" config --quiet
-# No token in this request. A blocked Telegram route must not stop the old app.
-curl --head --fail --silent --show-error --connect-timeout 5 --max-time 15 \
-    --output /dev/null https://api.telegram.org/
+test "$(stat -c '%a:%U' /etc/planerbot/proxy_ed25519)" = 600:root
+test -s /etc/planerbot/proxy_known_hosts
 docker build --target backend -t "planerbot-backend:$tag" .
 docker build --target gateway -t "planerbot-gateway:$tag" .
-docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
-    "planerbot-backend:$tag" python -c \
-    'import http.client; c=http.client.HTTPSConnection("api.telegram.org", timeout=15); c.request("HEAD", "/"); r=c.getresponse(); assert 200 <= r.status < 400; c.close()'
+docker build --target tunnel -t "planerbot-tunnel:$tag" .
+"${compose[@]}" up -d --wait --wait-timeout 90 telegram-proxy
+# Use the same proxy/network as runtime, explicitly omitting the bot token.
+"${compose[@]}" run --rm --no-deps -e BOT_TOKEN= api python -m planerbot.network
 "${compose[@]}" pull db certbot
 
 # First certificate is obtained with an HTTP-only gateway, no application exposed.
 if ! "${compose[@]}" run --rm --no-deps --entrypoint sh certbot -c 'test -s /etc/letsencrypt/live/193.124.129.252/fullchain.pem'; then
-    docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.yaml -f deploy/bootstrap.yaml up -d gateway
+    "${compose[@]}" -f deploy/bootstrap.yaml up -d gateway
     "${compose[@]}" run --rm --no-deps certbot certonly --non-interactive --agree-tos \
         --register-unsafely-without-email --required-profile shortlived \
         --webroot -w /var/www/acme --ip-address 193.124.129.252 \

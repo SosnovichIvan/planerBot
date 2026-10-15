@@ -7,6 +7,7 @@ x-app: &app
     BOT_TOKEN: ${BOT_TOKEN:?Provide a rotated BOT_TOKEN}
     DATABASE_URL: postgresql+asyncpg://planerbot:${POSTGRES_PASSWORD:?Provide POSTGRES_PASSWORD}@db:5432/planerbot
     WEBHOOK_SECRET: ""
+    TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
   depends_on:
     db:
       condition: service_healthy

@@ -30,3 +30,4 @@ jobs:
           docker build --target backend -t planerbot-backend:release-verification .
           docker run --rm planerbot-backend:release-verification pip check
           docker build --target gateway -t planerbot-gateway:release-verification .
+          docker build --target tunnel -t planerbot-tunnel:release-verification .

@@ -20,3 +20,9 @@ RUN npm run build:check
 FROM nginx:1.28-alpine AS gateway
 COPY --from=frontend /app/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+
+FROM debian:bookworm-slim AS tunnel
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-client netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["ssh"]

@@ -22,6 +22,7 @@ Telegram-бот и персональный календарь событий и
 - [Контракт каркаса и проверка Telegram](docs/foundation.md).
 - [События, настройки, парсинг и доставка](docs/events-implementation.md).
 - [VPS, HTTPS на IP, релиз и восстановление](docs/deployment.md).
+- [Закрытый прокси для Telegram](docs/telegram-proxy.md).
 
 Стек каркаса: Python 3.12 / aiogram / FastAPI, PostgreSQL 17,
 React / TypeScript для Telegram Mini App. Стилизация — Tailwind CSS

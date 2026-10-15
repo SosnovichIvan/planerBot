@@ -184,7 +184,7 @@ async def test_worker_cleanup(monkeypatch):
     bot, engine, delivery = AsyncMock(), AsyncMock(), AsyncMock()
     bot.id = 1
     delivery.run.side_effect = asyncio.CancelledError
-    monkeypatch.setattr("planerbot.worker.Bot", lambda token: bot)
+    monkeypatch.setattr("planerbot.worker.create_bot", lambda config: bot)
     monkeypatch.setattr("planerbot.worker.create_async_engine", lambda url, **kwargs: engine)
     monkeypatch.setattr("planerbot.worker.Delivery", lambda *args: delivery)
     with pytest.raises(asyncio.CancelledError):

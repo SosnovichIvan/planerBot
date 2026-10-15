@@ -1,0 +1,55 @@
+# VPS-only override. No published ports; forwarding is reachable inside Docker only.
+services:
+  telegram-proxy:
+    image: planerbot-tunnel:${RELEASE_TAG:?Use a verified release tag}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command:
+      - -NT
+      - -i
+      - /run/secrets/proxy_ssh_key
+      - -o
+      - IdentitiesOnly=yes
+      - -o
+      - BatchMode=yes
+      - -o
+      - ConnectTimeout=10
+      - -o
+      - StrictHostKeyChecking=yes
+      - -o
+      - UserKnownHostsFile=/run/secrets/proxy_known_hosts
+      - -o
+      - ExitOnForwardFailure=yes
+      - -o
+      - ServerAliveInterval=30
+      - -o
+      - ServerAliveCountMax=3
+      - -L
+      - 0.0.0.0:19840:10.66.66.1:3128
+      - root@89.126.250.245
+    secrets: [proxy_ssh_key, proxy_known_hosts]
+    healthcheck:
+      test: [CMD, nc, -z, 127.0.0.1, "19840"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  api:
+    depends_on:
+      telegram-proxy: {condition: service_healthy}
+  bot:
+    depends_on:
+      telegram-proxy: {condition: service_healthy}
+  worker:
+    depends_on:
+      telegram-proxy: {condition: service_healthy}
+
+secrets:
+  proxy_ssh_key:
+    file: /etc/planerbot/proxy_ed25519
+  proxy_known_hosts:
+    file: /etc/planerbot/proxy_known_hosts

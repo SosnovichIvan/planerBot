@@ -25,6 +25,10 @@ API запускается отдельно:
 .venv/bin/python -c 'import asyncio; from planerbot.polling import run_polling; asyncio.run(run_polling())'
 ```
 
+При необходимости задать TELEGRAM_PROXY_URL=http://127.0.0.1:19840 в .env после
+запуска своего закрытого SSH-туннеля. Все три backend-процесса используют эту
+настройку; при ошибке прокси прямого fallback нет. Оставить пустой для прямого доступа.
+
 Polling не удаляет существующий webhook. Использовать отдельного тестового бота;
 polling и webhook для одного токена не запускать одновременно.
 Режим webhook: настроить HTTPS reverse proxy, непустой WEBHOOK_SECRET,
