@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiFailure, loadChats } from '../../shared/api';
 import { initData } from '../../shared/telegram';
-import { monthDays, shiftMonth } from './model/month';
+import { eventDayCounts, monthDays, shiftMonth } from './model/month';
+import type { CalendarEvent } from '../../shared/api';
+import { EventsPanel } from './ui/events-panel';
+import { SettingsForm } from './ui/settings-form';
 
 type Chats = Awaited<ReturnType<typeof loadChats>>;
 type LoadState = { kind: 'loading' } | { kind: 'ready'; chats: Chats } | { kind: 'error'; status: number };
@@ -11,6 +14,8 @@ export function CalendarPage() {
   const [attempt, setAttempt] = useState(0);
   const [month, setMonth] = useState(() => shiftMonth(new Date(), 0));
   const [selectedChat, setSelectedChat] = useState('all');
+  const [counts, setCounts] = useState<Record<number, number>>({});
+  const recordEvents = useCallback((events: CalendarEvent[]) => setCounts(eventDayCounts(events, month)), [month]);
   const raw = initData();
 
   useEffect(() => {
@@ -75,13 +80,12 @@ export function CalendarPage() {
               <tbody>{Array.from({ length: Math.ceil(monthDays(month).length / 7) }, (_, week) => (
                 <tr key={week}>{Array.from({ length: 7 }, (_, weekday) => {
                   const day = monthDays(month)[week * 7 + weekday];
-                  return <td key={weekday} className="h-11 sm:h-12">{day}</td>;
+                  return <td key={weekday} className="h-11 sm:h-12"><span className="relative inline-flex size-9 items-center justify-center" aria-label={day && counts[day] ? `${day}, событий: ${counts[day]}` : undefined} title={day && counts[day] ? `Событий: ${counts[day]}` : undefined}>{day}{day && counts[day] > 0 ? <span className="absolute bottom-0 size-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}</span></td>;
                 })}</tr>
               ))}</tbody>
             </table>
             <div className="mt-5 border-t border-line pt-5">
-              <p className="text-sm font-medium">Раздел событий готовится</p>
-              <p className="mt-2 text-sm leading-6 text-muted">Сейчас можно проверить подключение чатов и тем. Создание встреч, места и публикации появятся на следующем этапе.</p>
+              <p className="text-sm leading-6 text-muted">События выбранного месяца — под календарём. Место и время указаны в каждой карточке.</p>
             </div>
           </section>
           <aside className="panel" aria-labelledby="chats-title">
@@ -96,11 +100,13 @@ export function CalendarPage() {
                 <p className="break-words text-sm font-semibold">{chat.title}</p>
                 <p className="mt-1 text-xs text-muted">{chat.can_manage ? 'Вы администратор' : 'Вы участник'}</p>
                 <ul className="mt-2 space-y-1">{chat.topics.map((topic) => <li className="break-words text-sm text-muted" key={topic.id}># {topic.title}</li>)}</ul>
+                {chat.can_manage && <SettingsForm chat={chat} raw={raw} onSaved={retry} />}
               </li>)}</ul>
             </>}
           </aside>
         </div>
       )}
+      {raw && state.kind === 'ready' && <EventsPanel key={selectedChat} chats={chats} raw={raw} month={month} selectedChat={selectedChat} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />}
       <footer className="mt-8 text-xs leading-5 text-muted">Доступ проверяется через Telegram при каждом открытии календаря.</footer>
     </main>
   );

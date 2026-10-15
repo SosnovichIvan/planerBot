@@ -40,4 +40,8 @@ button, select, a { -webkit-tap-highlight-color: transparent; }
   .panel { @apply rounded-2xl border border-line bg-surface p-5 sm:p-6; }
   .button { @apply min-h-11 cursor-pointer rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:opacity-90 active:opacity-80; }
   .icon-button { @apply flex size-11 cursor-pointer items-center justify-center rounded-xl border border-line text-2xl hover:bg-canvas active:opacity-70; }
+  .field { @apply mt-2 block min-h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink; }
+  .form-label { @apply block text-sm font-medium; }
+  .secondary-button { @apply min-h-11 cursor-pointer rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-canvas disabled:cursor-wait disabled:opacity-60; }
+  .button:disabled { @apply cursor-wait opacity-60; }
 }

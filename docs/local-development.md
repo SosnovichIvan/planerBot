@@ -31,6 +31,19 @@ polling и webhook для одного токена не запускать од
 передать тот же secret_token при setWebhook. Endpoint `/telegram/webhook`
 проверяет заголовок Telegram. Настройка внешнего webhook не выполняется автоматически.
 
+Для публикации событий запустить отдельный worker с тем же BOT_TOKEN и DATABASE_URL:
+
+```sh
+.venv/bin/python -c 'import asyncio; from planerbot.worker import run_worker; asyncio.run(run_worker())'
+```
+
+API сохраняет событие и задание одной транзакцией; worker отправляет/обновляет
+карточку в теме. Без worker события остаются в состоянии «Ожидает публикации».
+После обновления кода сначала выполнить `alembic upgrade head`, затем перезапустить
+API, polling и worker. До первой встречи выбрать часовой пояс чата в интерфейсе;
+по умолчанию UTC. /event в личном диалоге открывает календарь; в теме принимает
+структурированный шаблон. Настроенный тег импортирует сообщения и caption.
+
 Frontend в другом терминале:
 
 ```sh
@@ -49,6 +62,7 @@ Telegram. Браузерного обхода авторизации и демо
 ```sh
 docker compose exec -T db createdb -U planerbot planerbot_test
 DATABASE_URL=postgresql+asyncpg://planerbot:local-development@localhost:55432/planerbot_test .venv/bin/alembic upgrade head
+DATABASE_URL=postgresql+asyncpg://planerbot:local-development@localhost:55432/planerbot_test .venv/bin/python scripts/check_migrations.py
 .venv/bin/ruff check backend scripts
 .venv/bin/ruff format --check backend scripts
 .venv/bin/mypy
@@ -67,3 +81,6 @@ npm run build:check
 `planerbot_test`; не направлять их на рабочую базу. Изменения миграций проверяются
 на PostgreSQL, а не SQLite. Генерация контракта должна оставлять clean diff.
 `build:check` проверяет компиляцию в PR и не публикует релизный артефакт.
+Миграционные проверки и pytest используют одну тестовую базу и выполняются
+последовательно. Проверка миграции откатывается до 0001, создаёт тестовый чат
+и подтверждает сохранение его данных после upgrade; это не команда для рабочей БД.

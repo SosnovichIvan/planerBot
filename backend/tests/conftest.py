@@ -35,6 +35,6 @@ async def engine():
     assert TEST_DB.endswith("/planerbot_test"), "Only the isolated test database may be cleared"
     db = create_async_engine(TEST_DB)
     async with db.begin() as connection:
-        await connection.execute(text("TRUNCATE topics, chats"))
+        await connection.execute(text("TRUNCATE publications, events, topics, chats"))
     yield db
     await db.dispose()
