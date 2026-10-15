@@ -97,5 +97,24 @@ Telegram; дополнительно проверить polling/worker logs и �
 тега отказывает до build/сети приложения. Реальный выпуск сертификата, prod restore
 и Telegram-приёмка должны быть отмечены отдельно после первого запуска.
 
+## Выполненные проверки
+
+Локально: 136 pytest-тестов (24 из них — operational guards), backend 100% строк,
+99.41% ветвей. `coverage run --branch --source=deploy -m pytest
+backend/tests/test_deployment.py --no-cov` — отдельные 100% строк и ветвей
+validate-env.py; shell-процент этим отчётом не измеряется. Ruff, mypy, ShellCheck
+и обе Compose-конфигурации проверены. Python 3.12.14, pytest 9.1.1,
+coverage.py 7.16.2; продуктовый backend-код не изменён.
+
+Оба образа собраны для verification, `pip check` успешен. `bash deploy/smoke-test.sh`
+проверяет изолированный Docker-проект: пустая PostgreSQL 17 → upgrade head,
+readiness API в read-only контейнере от UID 10001, pg_dump/pg_restore в другую БД
+с проверкой контрольной записи, bootstrap HTTP 503 → HTTPS с локально доверенным
+одноразовым self-signed сертификатом, отдача статики, 401 без Telegram-подписи,
+404 для внешнего webhook и `nginx -t`. Тестовые контейнеры/тома/сертификаты удалены
+после проверки; обычная локальная БД не затронута. Этот smoke test включён в PR CI.
+Это не доказательство доверия к будущему Let's Encrypt сертификату или работы
+всех Telegram-клиентов. На VPS эти scripts ещё не запускались.
+
 Источники: [IP-сертификаты Let's Encrypt](https://letsencrypt.org/2026/03/11/shorter-certs-certbot),
 [Certbot renew/webroot](https://eff-certbot.readthedocs.io/en/stable/using.html).

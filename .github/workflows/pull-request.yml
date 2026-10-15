@@ -54,6 +54,7 @@ jobs:
           docker build --target backend -t planerbot-backend:verification .
           docker run --rm planerbot-backend:verification pip check
           docker build --target gateway -t planerbot-gateway:verification .
+          bash deploy/smoke-test.sh
   backend:
     name: Backend
     runs-on: ubuntu-latest
