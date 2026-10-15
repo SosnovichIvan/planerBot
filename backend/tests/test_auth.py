@@ -48,3 +48,7 @@ def test_expired_or_future(now):
 
 def test_clock_default():
     assert validate_init_data(signed(), TOKEN, 300).id == 42
+    raw = signed({"auth_date": "1000", "user": '{"id":42,"first_name":"x"}', "query_id": ""})
+    assert validate_init_data(raw, TOKEN, 300, now=1000).id == 42
+    with pytest.raises(Unauthorized):
+        validate_init_data(raw + "&query_id=", TOKEN, 300, now=1000)

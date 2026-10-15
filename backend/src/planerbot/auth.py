@@ -23,7 +23,7 @@ def validate_init_data(raw: str, token: str, ttl: int, *, now: int | None = None
     if not token or not raw or len(raw) > 16384:
         raise Unauthorized
     try:
-        pairs = parse_qsl(raw, strict_parsing=True, max_num_fields=32)
+        pairs = parse_qsl(raw, strict_parsing=True, keep_blank_values=True, max_num_fields=32)
         values = dict(pairs)
         if len(values) != len(pairs):
             raise Unauthorized
