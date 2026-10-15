@@ -40,7 +40,12 @@ def test_chats_and_unavailable():
                     "id": "-1",
                     "title": "А",
                     "can_manage": True,
-                    "topics": [{"id": "10", "title": "Тема"}],
+                    "topics": [{"id": "10", "title": "Тема", "enabled": True}],
+                    "timezone": "UTC",
+                    "event_tag": "#событие",
+                    "creation_policy": "admins",
+                    "confirmation_required": False,
+                    "settings_version": 1,
                 }
             ],
             "next_cursor": None,

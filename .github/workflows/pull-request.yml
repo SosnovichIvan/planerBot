@@ -74,6 +74,7 @@ jobs:
       - run: mypy
       - run: alembic upgrade head
       - run: alembic check
+      - run: python scripts/check_migrations.py
       - run: pytest
       - run: python scripts/check_coverage.py
       - name: Verify migration downgrade and re-upgrade in isolated CI database

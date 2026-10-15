@@ -9,6 +9,10 @@ class AccessUnavailable(Exception):
     pass
 
 
+class AccessDenied(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class Membership:
     status: str
@@ -30,6 +34,7 @@ class MembershipGateway(Protocol):
 
 
 class ChatStore(Protocol):
+    async def get(self, chat_id: int) -> ChatRecord | None: ...
     async def set_active(self, chat_id: int, active: bool) -> None: ...
 
     async def candidates(self, after: int | None) -> list[ChatRecord]: ...
@@ -50,6 +55,27 @@ class ChatAccess:
         self.store = store
         self.telegram = telegram
         self.bot_id = bot_id
+
+    async def authorize(
+        self, user_id: int, chat_id: int, *, manage: bool = False
+    ) -> AccessibleChat:
+        chat = await self.store.get(chat_id)
+        if chat is None:
+            raise AccessDenied
+        bot = await self.telegram.membership(chat_id, self.bot_id)
+        member = await self.telegram.membership(chat_id, user_id)
+        if not bot.admin or not member.present or (manage and not member.admin):
+            raise AccessDenied
+        return AccessibleChat(chat, member.admin)
+
+    async def all_for(self, user_id: int) -> list[AccessibleChat]:
+        result: list[AccessibleChat] = []
+        cursor: str | None = None
+        while True:
+            page, cursor = await self.list_for(user_id, int(cursor) if cursor else None)
+            result.extend(page)
+            if cursor is None:
+                return result
 
     async def list_for(
         self, user_id: int, after: int | None

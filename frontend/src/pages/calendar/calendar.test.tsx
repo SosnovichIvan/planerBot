@@ -6,12 +6,12 @@ import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
 
 vi.mock('../../shared/api', async (original) => ({
-  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(),
+  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }),
 }));
 
 const chats = [
-  { id: '-1', title: 'Рабочая команда', can_manage: true, topics: [{ id: '10', title: 'Встречи' }] },
-  { id: '-2', title: 'Книжный клуб', can_manage: false, topics: [] },
+  { id: '-1', title: 'Рабочая команда', can_manage: true, topics: [{ id: '10', title: 'Встречи', enabled: true }], timezone: 'UTC', event_tag: '#событие', creation_policy: 'admins', confirmation_required: false, settings_version: 1 },
+  { id: '-2', title: 'Книжный клуб', can_manage: false, topics: [], timezone: 'UTC', event_tag: '#событие', creation_policy: 'admins', confirmation_required: false, settings_version: 1 },
 ];
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ it('shows loading, real chats, topics, filters and month navigation', async () =
   expect(screen.getByText('Вы администратор')).toBeVisible();
   expect(screen.getByText('Вы участник')).toBeVisible();
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByRole('combobox'), '-2');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Показать чат' }), '-2');
   expect(screen.queryByText('# Встречи')).not.toBeInTheDocument();
   expect(screen.queryByText('Вы администратор')).not.toBeInTheDocument();
   const original = screen.getByRole('table').getAttribute('aria-label');
@@ -45,7 +45,7 @@ it('shows loading, real chats, topics, filters and month navigation', async () =
   expect(screen.getByRole('table').getAttribute('aria-label')).not.toBe(original);
   await user.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
   expect(screen.getByRole('table')).toHaveAttribute('aria-label', original);
-  expect(screen.getByText('Раздел событий готовится')).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'События месяца' })).toBeVisible();
 });
 
 it('shows an empty state without inventing events', async () => {

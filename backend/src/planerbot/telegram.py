@@ -1,7 +1,15 @@
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramBadRequest,
+    TelegramNetworkError,
+    TelegramServerError,
+)
+from aiogram.types import LinkPreviewOptions
 
 from planerbot.access import AccessUnavailable, Membership
+from planerbot.event_contracts import EventView
+from planerbot.publications import DeliveryRejected, DeliveryUnknown
 
 
 class TelegramGateway:
@@ -14,3 +22,57 @@ class TelegramGateway:
         except (TimeoutError, TelegramAPIError) as exc:
             raise AccessUnavailable from exc
         return Membership(member.status, getattr(member, "is_member", False))
+
+    async def send_card(self, event: EventView, message_id: int | None) -> int:
+        data = event.data
+        heading = "Отменено" if event.status == "cancelled" else "Событие"
+        when = f"{data.start_date:%d.%m.%Y} · {data.start_time or 'Весь день'} ({event.timezone})"
+        if data.end_time:
+            when += f" — {data.end_date or data.start_date} {data.end_time}"
+        place = (
+            "Место уточняется"
+            if data.place_pending
+            else "\n".join(
+                filter(
+                    None,
+                    [
+                        data.place,
+                        data.address,
+                        data.map_url,
+                        data.online_url,
+                    ],
+                )
+            )
+        )
+        content = "\n\n".join(
+            filter(
+                None,
+                [f"{heading}: {data.title}", when, place, data.description, " ".join(data.tags)],
+            )
+        )
+        try:
+            if message_id is not None:
+                await self.bot.edit_message_text(
+                    chat_id=int(event.chat_id),
+                    message_id=message_id,
+                    text=content,
+                    link_preview_options=LinkPreviewOptions(is_disabled=True),
+                    request_timeout=10,
+                )
+                return message_id
+            sent = await self.bot.send_message(
+                chat_id=int(event.chat_id),
+                message_thread_id=data.topic_id if data.topic_id != 1 else None,
+                text=content,
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+                request_timeout=10,
+            )
+            return sent.message_id
+        except TelegramBadRequest as exc:
+            if message_id is not None and "message is not modified" in exc.message.lower():
+                return message_id
+            raise DeliveryRejected from exc
+        except (TimeoutError, TelegramNetworkError, TelegramServerError) as exc:
+            raise DeliveryUnknown from exc
+        except TelegramAPIError as exc:
+            raise DeliveryRejected from exc

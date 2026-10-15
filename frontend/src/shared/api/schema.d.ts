@@ -72,6 +72,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chats/{chat_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Configure */
+        put: operations["configure_api_chats__chat_id__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Events */
+        get: operations["list_events_api_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Event */
+        post: operations["create_event_api_chats__chat_id__events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit Event */
+        put: operations["edit_event_api_chats__chat_id__events__event_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/events/{event_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Event */
+        post: operations["cancel_event_api_chats__chat_id__events__event_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/events/{event_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Event */
+        post: operations["approve_event_api_chats__chat_id__events__event_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/events/{event_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Publication */
+        post: operations["retry_publication_api_chats__chat_id__events__event_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -86,6 +205,53 @@ export interface components {
             can_manage: boolean;
             /** Topics */
             topics: components["schemas"]["TopicResponse"][];
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
+            /**
+             * Event Tag
+             * @default #событие
+             */
+            event_tag: string;
+            /**
+             * Creation Policy
+             * @default admins
+             */
+            creation_policy: string;
+            /**
+             * Confirmation Required
+             * @default false
+             */
+            confirmation_required: boolean;
+            /**
+             * Settings Version
+             * @default 1
+             */
+            settings_version: number;
+        };
+        /** ChatSettingsInput */
+        ChatSettingsInput: {
+            /** Version */
+            version: number;
+            /** Timezone */
+            timezone: string;
+            /** Event Tag */
+            event_tag: string;
+            /**
+             * Creation Policy
+             * @default admins
+             * @enum {string}
+             */
+            creation_policy: "admins" | "members";
+            /**
+             * Confirmation Required
+             * @default false
+             */
+            confirmation_required: boolean;
+            /** Enabled Topic Ids */
+            enabled_topic_ids: number[];
         };
         /** ChatsResponse */
         ChatsResponse: {
@@ -94,10 +260,180 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** EventEdit */
+        EventEdit: {
+            /** Topic Id */
+            topic_id: number;
+            /** Title */
+            title: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Start Time */
+            start_time?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** End Time */
+            end_time?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Meeting Format
+             * @default offline
+             * @enum {string}
+             */
+            meeting_format: "offline" | "online" | "hybrid";
+            /**
+             * Place
+             * @default
+             */
+            place: string;
+            /**
+             * Address
+             * @default
+             */
+            address: string;
+            /**
+             * Map Url
+             * @default
+             */
+            map_url: string;
+            /**
+             * Online Url
+             * @default
+             */
+            online_url: string;
+            /**
+             * Place Pending
+             * @default true
+             */
+            place_pending: boolean;
+            /** Tags */
+            tags?: string[];
+            /** Version */
+            version: number;
+        };
+        /** EventInput */
+        EventInput: {
+            /** Topic Id */
+            topic_id: number;
+            /** Title */
+            title: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Start Time */
+            start_time?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** End Time */
+            end_time?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Meeting Format
+             * @default offline
+             * @enum {string}
+             */
+            meeting_format: "offline" | "online" | "hybrid";
+            /**
+             * Place
+             * @default
+             */
+            place: string;
+            /**
+             * Address
+             * @default
+             */
+            address: string;
+            /**
+             * Map Url
+             * @default
+             */
+            map_url: string;
+            /**
+             * Online Url
+             * @default
+             */
+            online_url: string;
+            /**
+             * Place Pending
+             * @default true
+             */
+            place_pending: boolean;
+            /** Tags */
+            tags?: string[];
+        };
+        /** EventView */
+        EventView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Chat Id */
+            chat_id: string;
+            /** Chat Title */
+            chat_title: string;
+            /** Topic Title */
+            topic_title: string;
+            data: components["schemas"]["EventInput"];
+            /** Timezone */
+            timezone: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Ends At */
+            ends_at: string | null;
+            /** Version */
+            version: number;
+            /** Status */
+            status: string;
+            /** Source */
+            source: string;
+            /** Source Message Id */
+            source_message_id: number | null;
+            /** Publication Status */
+            publication_status: string | null;
+            /** Message Url */
+            message_url?: string | null;
+            /**
+             * Can Manage
+             * @default false
+             */
+            can_manage: boolean;
+        };
+        /** EventsView */
+        EventsView: {
+            /** Events */
+            events: components["schemas"]["EventView"][];
+            /** Has More */
+            has_more: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** RetryInput */
+        RetryInput: {
+            /**
+             * Ack Duplicate Risk
+             * @default false
+             */
+            ack_duplicate_risk: boolean;
         };
         /** TopicResponse */
         TopicResponse: {
@@ -105,6 +441,11 @@ export interface components {
             id: string;
             /** Title */
             title: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -118,6 +459,11 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VersionInput */
+        VersionInput: {
+            /** Version */
+            version: number;
         };
         /** Viewer */
         Viewer: {
@@ -231,6 +577,266 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ChatsResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    configure_api_chats__chat_id__settings_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_events_api_events_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+                chat_id?: number | null;
+                topic_id?: number | null;
+                tag?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_event_api_chats__chat_id__events_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_event_api_chats__chat_id__events__event_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_event_api_chats__chat_id__events__event_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_event_api_chats__chat_id__events__event_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_publication_api_chats__chat_id__events__event_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
