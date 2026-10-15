@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+  "version": "2.13.0",
+  "commit": "7f69fed6a2717900085f1bc3b263721f8ba025e2",
+  "imported_at": "2026-09-11",
+  "license": "MIT",
+  "role": "functional reference and source of selected MIT-licensed runtime, data, and reference materials",
+  "adaptations": [
+    "renamed the skill to ui-ux-design",
+    "replaced vendor-specific invocation with skill-relative runtime discovery",
+    "reduced the entrypoint and clarified independent composition boundaries",
+    "excluded upstream distribution templates, CLI, gallery, examples and bundled tests"
+  ]
+}

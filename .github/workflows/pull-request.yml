@@ -1,0 +1,43 @@
+name: Pull request
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    name: Branch policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch direction
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          TARGET_REPO: ${{ github.repository }}
+        run: |
+          if [ "$BASE_REF" = "main" ]; then
+            test "$HEAD_REF" = "develop"
+            test "$SOURCE_REPO" = "$TARGET_REPO"
+          else
+            test "$BASE_REF" = "develop"
+            test "$HEAD_REF" != "main"
+            test "$HEAD_REF" != "develop"
+          fi
+  repository-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA" -- . ':(exclude).agents/skills/**'

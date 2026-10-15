@@ -1,0 +1,165 @@
+{
+  "schema_version": 2,
+  "installer_version": "1.0.0",
+  "agent_adapter": "codex",
+  "skills": {
+    "project-architecture": {
+      "name": "Project Architecture",
+      "description": "Границы системы, контракты, ADR и план реализации/перехода.",
+      "options": [],
+      "option_names": [],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "c77a9a4eb08c4ab95a66840366a3385df79aa0eeb66f0a61eafbcf2b5d1e4333"
+    },
+    "backend-engineering": {
+      "name": "Backend Engineering",
+      "description": "Реализация API, domain logic, persistence, безопасности и эксплуатации backend-сервисов.",
+      "options": [
+        "python"
+      ],
+      "option_names": [
+        "Python / FastAPI / Django"
+      ],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "a0444dade65616956f40117293a3b6726bdce782944e7e0c0d530c2b8c1254e8"
+    },
+    "backend-review": {
+      "name": "Backend Review",
+      "description": "Ревью контрактов, авторизации, конкурентности и отказов сервисов.",
+      "options": [],
+      "option_names": [],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "118fffa13e18268bc414801b88d99811c67657f2d3f9eb1761a3e8015fdc0e56"
+    },
+    "frontend-engineering": {
+      "name": "Frontend Engineering",
+      "description": "Реализация frontend-сценариев с архитектурой, доступностью, API и проверками выбранного стека.",
+      "options": [
+        "typescript",
+        "react",
+        "structure-fsd"
+      ],
+      "option_names": [
+        "TypeScript",
+        "React",
+        "Feature-Sliced Design"
+      ],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "d96dcf1e2a324e500fc29186f7b6759cdd2cf49a129f402f58c35c753f35fec8"
+    },
+    "frontend-review": {
+      "name": "Frontend Review",
+      "description": "Ревью frontend-кода с доказательствами функциональных регрессий.",
+      "options": [],
+      "option_names": [],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "42bb8dafe1ece578216ea66de2668e685d4f604414ca1b45fcd4577619c1d02e"
+    },
+    "database-engineering": {
+      "name": "Database Engineering",
+      "description": "Схемы, SQL, индексы, миграции и backfill реляционных БД.",
+      "options": [
+        "postgresql"
+      ],
+      "option_names": [
+        "PostgreSQL"
+      ],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "2522c3ed2e052fa5e8dcb0069f4250847d5fa99d4fc68e08db2c1f7df0b1aee9"
+    },
+    "database-review": {
+      "name": "Database Review",
+      "description": "Ревью SQL, миграций, изоляции данных и совместимости rollout.",
+      "options": [
+        "postgresql"
+      ],
+      "option_names": [
+        "PostgreSQL"
+      ],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "821976d697c75461e5a1407fc472e8e2702b5f4c3b96d81377bec330c7f4da2b"
+    },
+    "ui-ux-design": {
+      "name": "UI/UX Design",
+      "description": "Локальный поиск и применение UI/UX-рекомендаций: visual direction, design systems, accessibility, interaction, responsive layout, typography, color и charts.",
+      "options": [],
+      "option_names": [],
+      "version": "0.2.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "0908771c37f1b30fe3c1f27f7344cdf80e86844dac7a69ee586b28352764a5c7"
+    },
+    "ux-writing": {
+      "name": "UX Writing",
+      "description": "Тексты действий, форм, ошибок и состояний интерфейса.",
+      "options": [],
+      "option_names": [],
+      "version": "0.1.0",
+      "required_by": [],
+      "installed_at": "2026-10-15T11:20:16.216502+00:00",
+      "content_sha256": "bd6ace9cd6152aaca5178a46105a70496b63225a4244718de6024a5debbea86a"
+    }
+  },
+  "policies": {
+    "project-rules": {
+      "approved_at": "2026-10-15T11:20:16.217137+00:00",
+      "consent": "cli",
+      "rules": {
+        "project-architecture": {
+          "source": "skills/project-architecture/references/project-rules.md",
+          "sha256": "59856f05c7f359a1816e3640ecd595ff117aab225cf85fd456479240f4433783"
+        },
+        "backend-engineering": {
+          "source": "skills/backend-engineering/references/project-rules.md",
+          "sha256": "2ad42dd14ec2ae4fe0c44d6681aaf3a0250992b9cc68b04ab293581071fedb3e"
+        },
+        "backend-review": {
+          "source": "skills/backend-review/references/project-rules.md",
+          "sha256": "596a65683974b6434d913f151d3b3f7e1b8e959dbf896a8c461e45fd6d7a0fc1"
+        },
+        "frontend-engineering": {
+          "source": "skills/frontend-engineering/references/project-rules.md",
+          "sha256": "0f4607e5c09391e5ea7bce3555452ce607604e1c9fcb97ca67eb7dc7748159d4"
+        },
+        "frontend-review": {
+          "source": "skills/frontend-review/references/project-rules.md",
+          "sha256": "3fc46589fa7dd5d94dff2c602fb9d7146b9348374396d41b7183ce0d73c86adc"
+        },
+        "database-engineering": {
+          "source": "skills/database-engineering/references/project-rules.md",
+          "sha256": "71cfd33dc4db519f4f016544d3c90708e19b0704a90aa0434990ef573cc3600f"
+        },
+        "database-review": {
+          "source": "skills/database-review/references/project-rules.md",
+          "sha256": "892bc366bb33af7486bdf3afe38863f42be36ee591016679b73ad0989432c8d9"
+        },
+        "ui-ux-design": {
+          "source": "skills/ui-ux-design/references/project-rules.md",
+          "sha256": "797a5b40011d3f6a6918e8e70c0fcfaee5e5fec59e74e4389d616fab6e5e1dfd"
+        },
+        "ux-writing": {
+          "source": "skills/ux-writing/references/project-rules.md",
+          "sha256": "9e01d23b625fa43464c66883654a5eaec472291cdc30282d0f4a22368663bc7f"
+        },
+        "delivery": {
+          "source": "agents/rules/delivery.md",
+          "sha256": "f9dc1940a7caa8f6c80c4ac22b53a5dbbbdd091897f045afee877c82c320b14a"
+        }
+      }
+    }
+  }
+}
