@@ -41,6 +41,20 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git diff --check "$BASE_SHA...$HEAD_SHA" -- . ':(exclude).agents/skills/**'
+      - name: Check deployment scripts and Compose (no release or deployment)
+        env:
+          RELEASE_TAG: verification
+          BOT_TOKEN: '123456:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          POSTGRES_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        run: |
+          for script in deploy/*.sh; do bash -n "$script"; done
+          shellcheck deploy/*.sh
+          docker compose -f deploy/compose.yaml config --quiet
+          docker compose -f deploy/compose.yaml -f deploy/bootstrap.yaml config --quiet
+          docker build --target backend -t planerbot-backend:verification .
+          docker run --rm planerbot-backend:verification pip check
+          docker build --target gateway -t planerbot-gateway:verification .
+          bash deploy/smoke-test.sh
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -69,14 +83,19 @@ jobs:
           cache-dependency-path: requirements-dev.lock
       - run: pip install -r requirements-dev.lock
       - run: pip install --no-deps -e .
-      - run: ruff check backend scripts
-      - run: ruff format --check backend scripts
+      - run: ruff check backend scripts deploy
+      - run: ruff format --check backend scripts deploy
       - run: mypy
       - run: alembic upgrade head
       - run: alembic check
       - run: python scripts/check_migrations.py
       - run: pytest
       - run: python scripts/check_coverage.py
+      - name: Check deployment validator coverage separately
+        run: |
+          COVERAGE_FILE=/tmp/deployment.coverage coverage run --branch --source=deploy -m pytest backend/tests/test_deployment.py --no-cov
+          COVERAGE_FILE=/tmp/deployment.coverage coverage json -o /tmp/deployment-coverage.json
+          python -c 'import json; t=json.load(open("/tmp/deployment-coverage.json"))["totals"]; assert t["covered_lines"]/t["num_statements"] >= .9; assert t["covered_branches"]/t["num_branches"] >= .9'
       - name: Verify migration downgrade and re-upgrade in isolated CI database
         run: |
           alembic downgrade base
