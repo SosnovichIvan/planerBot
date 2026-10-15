@@ -1,0 +1,76 @@
+name: planerbot
+
+x-app: &app
+  image: planerbot-backend:${RELEASE_TAG:?Use a verified release tag}
+  restart: unless-stopped
+  environment: &app-env
+    BOT_TOKEN: ${BOT_TOKEN:?Provide a rotated BOT_TOKEN}
+    DATABASE_URL: postgresql+asyncpg://planerbot:${POSTGRES_PASSWORD:?Provide POSTGRES_PASSWORD}@db:5432/planerbot
+    WEBHOOK_SECRET: ""
+  depends_on:
+    db:
+      condition: service_healthy
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 40s
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: planerbot
+      POSTGRES_USER: planerbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Provide POSTGRES_PASSWORD}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U planerbot -d planerbot"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    logging: *logging
+  api:
+    <<: *app
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  bot:
+    <<: *app
+    command: [python, -c, "import asyncio; from planerbot.polling import run_polling; asyncio.run(run_polling())"]
+  worker:
+    <<: *app
+    command: [python, -c, "import asyncio; from planerbot.worker import run_worker; asyncio.run(run_worker())"]
+  migrate:
+    <<: *app
+    restart: "no"
+    profiles: [tools]
+    command: [alembic, upgrade, head]
+  gateway:
+    image: planerbot-gateway:${RELEASE_TAG:?Use a verified release tag}
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - acme-webroot:/var/www/acme:ro
+    logging: *logging
+  certbot:
+    image: certbot/certbot:v5.8.0
+    profiles: [tools]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - acme-webroot:/var/www/acme
+    logging: *logging
+
+volumes:
+  postgres-data:
+  letsencrypt:
+  acme-webroot:

@@ -21,11 +21,12 @@ Telegram-бот и персональный календарь событий и
 - [Локальный запуск и проверки](docs/local-development.md).
 - [Контракт каркаса и проверка Telegram](docs/foundation.md).
 - [События, настройки, парсинг и доставка](docs/events-implementation.md).
+- [VPS, HTTPS на IP, релиз и восстановление](docs/deployment.md).
 
 Стек каркаса: Python 3.12 / aiogram / FastAPI, PostgreSQL 17,
 React / TypeScript для Telegram Mini App. Стилизация — Tailwind CSS
 (выбор пользователя). Точные зависимости фиксируются в requirements-dev.lock
-и frontend/package-lock.json.
+и frontend/package-lock.json; runtime backend — requirements-prod.lock.
 
 ## Работа с репозиторием
 
