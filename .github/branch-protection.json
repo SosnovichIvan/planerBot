@@ -1,7 +1,7 @@
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Branch policy", "Repository hygiene"]
+    "contexts": ["Branch policy", "Repository hygiene", "Backend", "Frontend"]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {

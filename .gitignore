@@ -12,6 +12,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 coverage.xml
+coverage.json
+*.egg-info/
 htmlcov/
 node_modules/
 dist/
