@@ -76,7 +76,7 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
   }
 
   if (!chat) return <Modal title="Создание недоступно" onClose={onClose}><p role="alert">Нет прав администратора. Обновите календарь.</p></Modal>;
-  return <Modal title={event ? 'Редактировать событие' : 'Создать событие'} onClose={close} busy={busy} closeLabel="Закрыть форму">
+  return <Modal title={event ? 'Редактировать событие' : 'Создать событие'} onClose={close} busy={busy} closeLabel="Закрыть форму" fullHeight>
     <form id={formId} ref={formRef} className="event-form" onChange={() => { dirty.current = true; }} onSubmit={(e) => { e.preventDefault(); void submit(e.currentTarget); }}>
     <div className="event-form-body">
     <p className="text-sm text-muted">Часовой пояс: {event?.timezone ?? chat.timezone ?? 'UTC'}. {event ? 'Изменения появятся в календаре. Личное уведомление — только по вашему выбору.' : 'Карточка будет опубликована в выбранном чате.'}</p>

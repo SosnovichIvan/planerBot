@@ -17,6 +17,18 @@ async function fill() {
   await userEvent.type(screen.getByLabelText('Место встречи'), 'Кафе');
 }
 
+it('uses the bounded full-height layout for create and edit without applying it to nested pickers', async () => {
+  const view = render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByRole('dialog', { name: 'Создать событие' })).toHaveClass('modal-full-height');
+  expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Дата начала' }));
+  expect(screen.getByRole('dialog', { name: 'Дата начала' })).not.toHaveClass('modal-full-height');
+  view.unmount();
+  render(<EventForm chats={chats} raw="signed" event={event} onSaved={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByRole('dialog', { name: 'Редактировать событие' })).toHaveClass('modal-full-height');
+  expect(screen.getByRole('button', { name: 'Сохранить изменения' })).toBeVisible();
+});
+
 it('creates in the selected chat and enabled topic, passes place and preserves a stable request key', async () => {
   const saved = vi.fn();
   vi.mocked(createEvent).mockRejectedValueOnce(new ApiFailure(422, 'Проверьте время')).mockResolvedValueOnce(event);
