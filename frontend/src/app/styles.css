@@ -37,6 +37,7 @@ button, select, a { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 @layer components {
+  .event-dialog { @apply m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-line bg-surface p-5 text-ink shadow-xl backdrop:bg-black/60 sm:p-6; }
   .panel { @apply rounded-2xl border border-line bg-surface p-5 sm:p-6; }
   .button { @apply min-h-11 cursor-pointer rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:opacity-90 active:opacity-80; }
   .icon-button { @apply flex size-11 cursor-pointer items-center justify-center rounded-xl border border-line text-2xl hover:bg-canvas active:opacity-70; }

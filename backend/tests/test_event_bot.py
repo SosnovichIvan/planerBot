@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from aiogram.types import Update
-from planerbot.access import AccessDenied, AccessUnavailable
+from planerbot.access import AccessDenied, AccessUnavailable, Membership
 from planerbot.bot import create_dispatcher
 from planerbot.event_contracts import Conflict, InvalidEvent
 from test_bot import bot_stub, update
@@ -22,7 +22,6 @@ async def test_ignore_invalid_senders(kwargs):
 @pytest.mark.parametrize(
     "content,command,result,reply",
     [
-        ("/event", True, "active", "отправив"),
         ("/event\nНазвание: A", True, "active", "Публикация"),
         ("#событие\nНазвание: A", False, "pending", "подтверждения"),
         ("#событие\nНазвание: A", False, "active", "добавлено"),
@@ -82,7 +81,7 @@ async def test_private_event_opens_personal_calendar():
         bot, update("/event", chat_type="private")
     )
     markup = bot.session.call_args[0][1].reply_markup
-    assert "startapp=calendar" in markup.inline_keyboard[0][0].url
+    assert "startapp=create" in markup.inline_keyboard[0][0].url
     events.import_message.assert_not_awaited()
 
 
@@ -97,3 +96,48 @@ async def test_edited_command_uses_the_same_command_filter():
         bot, Update.model_validate(payload)
     )
     assert events.import_message.call_args.kwargs["command"] is True
+
+
+@pytest.mark.parametrize("forum,thread", [(True, 10), (False, 1)])
+async def test_event_command_opens_form_in_current_chat_and_topic(forum, thread):
+    bot, gateway, events = bot_stub(), AsyncMock(), AsyncMock()
+    gateway.membership.return_value = Membership("administrator")
+    await create_dispatcher(AsyncMock(), gateway, events).feed_update(
+        bot, update("/event", forum=forum)
+    )
+    markup = bot.session.call_args[0][1].reply_markup
+    assert markup.inline_keyboard[0][0].url.endswith(f"startapp=create_-1_{thread}")
+    events.import_message.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "memberships,reply",
+    [
+        ([Membership("member"), Membership("administrator")], "права администратора"),
+        ([Membership("administrator"), Membership("member")], "права администратора"),
+        (AccessUnavailable(), "проверить права"),
+    ],
+)
+async def test_create_link_checks_admins(memberships, reply):
+    bot, gateway = bot_stub(), AsyncMock()
+    gateway.membership.side_effect = memberships
+    await create_dispatcher(AsyncMock(), gateway, AsyncMock()).feed_update(bot, update("/event"))
+    assert reply in bot.session.call_args[0][1].text
+    assert bot.session.call_args[0][1].reply_markup is None
+
+
+@pytest.mark.parametrize("kwargs", [{"anonymous": True}, {"sender": False}])
+async def test_create_link_requires_identified_admin(kwargs):
+    bot = bot_stub()
+    await create_dispatcher(AsyncMock(), AsyncMock(), AsyncMock()).feed_update(
+        bot, update("/event", **kwargs)
+    )
+    assert "личного аккаунта" in bot.session.call_args[0][1].text
+
+
+async def test_create_link_does_not_support_channels():
+    bot = bot_stub()
+    await create_dispatcher(AsyncMock(), AsyncMock(), AsyncMock()).feed_update(
+        bot, update("/event", chat_type="channel")
+    )
+    bot.session.assert_not_awaited()

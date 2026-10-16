@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiFailure, loadChats } from '../../shared/api';
-import { initData } from '../../shared/telegram';
+import { creationTarget, initData } from '../../shared/telegram';
 import { eventDayCounts, monthDays, shiftMonth } from './model/month';
 import type { CalendarEvent } from '../../shared/api';
 import { EventsPanel } from './ui/events-panel';
@@ -15,9 +15,11 @@ export function CalendarPage() {
   const [month, setMonth] = useState(() => shiftMonth(new Date(), 0));
   const [selectedChat, setSelectedChat] = useState('all');
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const [creationConsumed, setCreationConsumed] = useState(false);
   const [counts, setCounts] = useState<Record<number, number>>({});
   const recordEvents = useCallback((events: CalendarEvent[]) => setCounts(eventDayCounts(events, month)), [month]);
   const raw = initData();
+  const intent = creationConsumed ? null : creationTarget(raw);
 
   useEffect(() => {
     if (!raw) return;
@@ -92,7 +94,7 @@ export function CalendarPage() {
         </div>
       )}
       {raw && state.kind === 'ready' && <>
-        <EventsPanel key={selectedChat} chats={chats} raw={raw} month={month} selectedChat={selectedChat} toolbarTarget={toolbarTarget} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />
+        <EventsPanel chats={chats} raw={raw} month={month} selectedChat={selectedChat} toolbarTarget={toolbarTarget} initialCreation={intent} onCreationHandled={() => setCreationConsumed(true)} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />
         {visibleChats.filter((chat) => chat.can_manage).map((chat) => <section className="panel mt-6" key={chat.id} aria-label={`Настройки: ${chat.title}`}>
           <h2 className="text-sm font-semibold">{chat.title}</h2>
           <SettingsForm chat={chat} raw={raw} onSaved={retry} />

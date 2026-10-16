@@ -1,7 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectTelegram, initData } from './index';
+import { connectTelegram, creationTarget, initData } from './index';
 
 afterEach(() => { delete window.Telegram; delete document.documentElement.dataset.theme; });
+
+it('parses creation hints without treating arbitrary start params as creation', () => {
+  expect(creationTarget('start_param=create')).toEqual({});
+  expect(creationTarget('start_param=create_-100100_10')).toEqual({ chatId: '-100100', topicId: '10' });
+  for (const raw of ['', 'start_param=chat_-100100', 'start_param=create_42_10', 'start_param=create_-1_0', 'start_param=create_-1_10_extra']) expect(creationTarget(raw)).toBeNull();
+});
 
 it('does not create identity outside Telegram', () => {
   expect(initData()).toBe('');

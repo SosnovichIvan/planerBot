@@ -8,7 +8,7 @@ import { chats, event } from './fixtures.test-data';
 vi.mock('../../../shared/api', async (original) => ({
   ...await original<typeof import('../../../shared/api')>(), createEvent: vi.fn(), editEvent: vi.fn(),
 }));
-beforeEach(() => { vi.mocked(createEvent).mockReset(); vi.mocked(editEvent).mockReset(); });
+beforeEach(() => { vi.mocked(createEvent).mockReset(); vi.mocked(editEvent).mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); });
 
 async function fill() {
   await userEvent.type(screen.getByLabelText('Название'), 'Встреча');
@@ -68,4 +68,59 @@ it('edits with the existing topic and version, disables double submit and allows
 it('does not submit when no topic is enabled', () => {
   render(<EventForm chats={[{ ...chats[0], topics: [] }]} raw="signed" onSaved={vi.fn()} onClose={vi.fn()} />);
   expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeDisabled();
+});
+
+it('opens a labelled dialog and blocks background scrolling until unmounted', () => {
+  document.body.style.overflow = 'auto';
+  const view = render(<EventForm chats={chats} raw="signed" initialChatId={chats[1].id} initialTopicId="20" onSaved={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByRole('dialog', { name: 'Создать событие' })).toHaveAttribute('open');
+  expect(screen.getByRole('heading', { name: 'Создать событие' })).toHaveFocus();
+  expect(screen.getByLabelText('Чат')).toHaveValue(chats[1].id);
+  expect(screen.getByLabelText('Тема')).toHaveValue('20');
+  expect(document.body.style.overflow).toBe('hidden');
+  view.unmount();
+  expect(document.body.style.overflow).toBe('auto');
+  document.body.style.overflow = '';
+});
+
+it('requires an explicit replacement for an unavailable launch topic', () => {
+  render(<EventForm chats={chats} raw="signed" initialChatId={chats[0].id} initialTopicId="11" onSaved={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByRole('status')).toHaveTextContent('Исходная тема недоступна');
+  expect(screen.getByLabelText('Тема')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeDisabled();
+});
+
+it('handles Escape and cancel, but does not close during a save', async () => {
+  const close = vi.fn();
+  let finish!: (event: typeof import('./fixtures.test-data').event) => void;
+  vi.mocked(createEvent).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={close} />);
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: false, cancelable: true }));
+  expect(close).toHaveBeenCalledOnce();
+  close.mockClear();
+  await fill();
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: false, cancelable: true }));
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Закрыть форму' })).toBeDisabled();
+  finish(event);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Отмена' })).toBeEnabled());
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('keeps a dirty draft when discarding is declined, including an uncertain save', async () => {
+  const close = vi.fn();
+  vi.mocked(createEvent).mockRejectedValue(new Error('network'));
+  render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={close} />);
+  await fill();
+  vi.mocked(window.confirm).mockReturnValue(false);
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Название')).toHaveValue('Встреча');
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  await screen.findByRole('alert');
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(window.confirm).toHaveBeenLastCalledWith(expect.stringContaining('Сохранение могло состояться'));
+  expect(close).not.toHaveBeenCalled();
 });

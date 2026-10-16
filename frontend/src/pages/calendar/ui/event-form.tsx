@@ -1,24 +1,46 @@
-import { useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ApiFailure, createEvent, editEvent, errorText } from '../../../shared/api';
 import type { CalendarEvent, Chat, EventDraft } from '../../../shared/api';
 
-export function EventForm({ chats, raw, event, initialChatId, onSaved, onClose }: {
+export function EventForm({ chats, raw, event, initialChatId, initialTopicId, onSaved, onClose }: {
   chats: Chat[]; raw: string; event?: CalendarEvent;
   initialChatId?: string;
+  initialTopicId?: string;
   onSaved: (event: CalendarEvent) => void; onClose: () => void;
 }) {
   const manageable = chats.filter((chat) => chat.can_manage);
   const [chatId, setChatId] = useState(event?.chat_id ?? manageable.find((chat) => chat.id === initialChatId)?.id ?? manageable[0].id);
   const chat = manageable.find((item) => item.id === chatId)!;
   const topics = chat.topics.filter((topic) => topic.enabled !== false);
-  const [topicId, setTopicId] = useState(event?.data.topic_id.toString() ?? topics[0]?.id ?? '');
+  const [topicId, setTopicId] = useState(event?.data.topic_id.toString() ?? (initialTopicId ? topics.find((topic) => topic.id === initialTopicId)?.id ?? '' : topics[0]?.id ?? ''));
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState('');
   const lock = useRef(false);
+  const dirty = useRef(false);
   const key = useRef(crypto.randomUUID());
   const submitted = useRef<EventDraft | null>(null);
   const data = event?.data;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current!;
+    const overflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = 'hidden';
+    headingRef.current?.focus();
+    return () => { dialog.close(); document.body.style.overflow = overflow; };
+  }, []);
+
+  function close() {
+    if (lock.current) return;
+    if ((dirty.current || uncertain) && !window.confirm(uncertain
+      ? 'Сохранение могло состояться. После закрытия сначала обновите календарь, чтобы не создать дубликат. Закрыть форму?'
+      : 'Закрыть форму и потерять несохранённые изменения?')) return;
+    onClose();
+  }
 
   async function submit(form: HTMLFormElement) {
     if (lock.current) return;
@@ -43,10 +65,15 @@ export function EventForm({ chats, raw, event, initialChatId, onSaved, onClose }
     } finally { lock.current = false; setBusy(false); }
   }
 
-  return <section className="panel mt-6" aria-labelledby="event-form-title">
-    <h2 id="event-form-title" className="text-xl font-semibold">{event ? 'Изменить событие' : 'Создать событие'}</h2>
-    <p className="mt-2 text-sm text-muted">Время в часовом поясе {event?.timezone ?? chat.timezone ?? 'UTC'}. Карточка отправится в выбранную тему.</p>
-    <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); void submit(e.currentTarget); }}>
+  return <dialog ref={dialogRef} className="event-dialog" aria-labelledby={titleId} onCancel={(e) => { e.preventDefault(); close(); }}>
+    <div className="flex items-start justify-between gap-3">
+      <h2 ref={headingRef} tabIndex={-1} id={titleId} className="text-xl font-semibold">{event ? 'Изменить событие' : 'Создать событие'}</h2>
+      <button className="secondary-button shrink-0" type="button" disabled={busy} onClick={close} aria-label="Закрыть форму">Закрыть</button>
+    </div>
+    <p className="mt-2 text-sm text-muted">Время в часовом поясе {event?.timezone ?? chat.timezone ?? 'UTC'}. После сохранения карточка будет отправлена в выбранный чат и тему.</p>
+    {!topics.length && <p className="mt-4 text-sm" role="status">Нет доступных тем для публикации. Включите тему в настройках чата и откройте форму заново.</p>}
+    {initialTopicId && !topicId && topics.length > 0 && <p className="mt-4 text-sm" role="status">Исходная тема недоступна. Выберите другую включённую тему.</p>}
+    <form className="mt-5 space-y-4" onChange={() => { dirty.current = true; }} onSubmit={(e) => { e.preventDefault(); void submit(e.currentTarget); }}>
       <fieldset disabled={busy || uncertain} className="space-y-4 disabled:opacity-70">
         <label className="form-label">Чат<select aria-label="Чат" className="field" value={chatId} disabled={!!event} onChange={(e) => {
           setChatId(e.target.value);
@@ -78,8 +105,8 @@ export function EventForm({ chats, raw, event, initialChatId, onSaved, onClose }
       {error && <p role="alert" className="text-sm font-medium">{error}</p>}
       <div className="flex flex-wrap gap-3">
         <button className="button" type="submit" disabled={busy || !topicId}>{busy ? 'Сохраняем…' : event ? 'Сохранить изменения' : 'Создать и опубликовать'}</button>
-        <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>Закрыть форму</button>
+        <button className="secondary-button" type="button" disabled={busy} onClick={close}>Отмена</button>
       </div>
     </form>
-  </section>;
+  </dialog>;
 }

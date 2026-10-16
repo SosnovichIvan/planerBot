@@ -25,7 +25,6 @@ from planerbot.access import (
 )
 from planerbot.event_contracts import Conflict, InvalidEvent
 from planerbot.events import EventService
-from planerbot.parsing import TEMPLATE
 
 
 def create_dispatcher(
@@ -179,11 +178,6 @@ def create_dispatcher(
             ):
                 return
             content = message.text or message.caption or ""
-            if command and "\n" not in content:
-                await message.answer(
-                    "Создайте событие в этой теме, отправив:\n\n/event\n" + TEMPLATE
-                )
-                return
             try:
                 stamp = message.edit_date or message.date
                 source_date = (
@@ -221,10 +215,44 @@ def create_dispatcher(
 
         @router.message(Command("event"))
         async def command_event(message: Message, event_update: Update, bot: Bot) -> None:
-            if message.chat.type == "private":
-                await calendar(message, bot)
+            if "\n" in (message.text or "") and message.chat.type != "private":
+                await import_event(message, event_update, command=True)
                 return
-            await import_event(message, event_update, command=True)
+            if message.chat.type not in {"private", "group", "supergroup"}:
+                return
+            context = "create"
+            if message.chat.type != "private":
+                if message.from_user is None or message.sender_chat is not None:
+                    await message.answer("Отправьте команду от личного аккаунта администратора.")
+                    return
+                try:
+                    member = await gateway.membership(message.chat.id, message.from_user.id)
+                    bot_member = await gateway.membership(message.chat.id, bot.id)
+                except AccessUnavailable:
+                    await message.answer("Не удалось проверить права. Попробуйте позже.")
+                    return
+                if not member.admin or not bot_member.admin:
+                    await message.answer(
+                        "Для создания события нужны права администратора у вас и у бота."
+                    )
+                    return
+                thread = (message.message_thread_id or 1) if message.chat.is_forum else 1
+                context = f"create_{message.chat.id}_{thread}"
+            me = await bot.get_me()
+            await message.answer(
+                "Заполните форму события. "
+                "После сохранения бот опубликует карточку в выбранном чате.",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="Создать событие",
+                                url=f"https://t.me/{me.username}?startapp={context}",
+                            )
+                        ]
+                    ]
+                ),
+            )
 
         @router.message()
         async def tagged_event(message: Message, event_update: Update) -> None:

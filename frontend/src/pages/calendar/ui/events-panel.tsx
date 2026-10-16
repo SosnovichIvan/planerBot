@@ -13,9 +13,10 @@ const publicationLabels: Record<string, string> = {
   failed: 'Не удалось опубликовать', unknown: 'Результат отправки неизвестен',
 };
 
-export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[]) => void; toolbarTarget?: HTMLElement | null }) {
+export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget, initialCreation, onCreationHandled }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[]) => void; toolbarTarget?: HTMLElement | null; initialCreation?: { chatId?: string; topicId?: string } | null; onCreationHandled?: () => void }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
-  const [editor, setEditor] = useState<CalendarEvent | 'new' | null>(null);
+  const allowedCreation = !!initialCreation && chats.some((chat) => chat.can_manage && (!initialCreation.chatId || chat.id === initialCreation.chatId));
+  const [editor, setEditor] = useState<CalendarEvent | 'new' | null>(() => allowedCreation ? 'new' : null);
   const [attempt, setAttempt] = useState(0);
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,17 +59,18 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
   }
 
   const toolbar = <div className="flex flex-wrap items-center gap-2" aria-label="Действия календаря">
-      {chats.some((chat) => chat.can_manage) && <button className="button" onClick={() => { setEditor('new'); setNotice(''); }}>Создать событие</button>}
+      {chats.some((chat) => chat.can_manage) && <button className="button" onClick={() => { onCreationHandled?.(); setEditor('new'); setNotice(''); }}>Создать событие</button>}
       <button className="secondary-button" onClick={refresh}>Обновить события</button>
     </div>;
 
   return <section className="mt-6" aria-labelledby="events-title">
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
     <h2 id="events-title" className="mb-5 text-xl font-semibold">События месяца</h2>
+    {initialCreation && !allowedCreation && <p className="panel mb-4 text-sm" role="alert">Для создания события нужны права администратора выбранного чата.</p>}
     {notice && <p className="mb-4 text-sm" role="status">{notice}</p>}
     {actionError && <p className="mb-4 text-sm" role="alert">{actionError}</p>}
-    {editor && <EventForm key={editor === 'new' ? 'new' : editor.id} chats={chats} raw={raw} initialChatId={selectedChat} event={editor === 'new' ? undefined : editor}
-      onClose={() => setEditor(null)} onSaved={(saved) => { setEditor(null); setNotice(`Событие сохранено на ${saved.data.start_date}. Статус публикации указан в карточке.`); refresh(); onCreated?.(saved); }} />}
+    {editor && <EventForm key={editor === 'new' ? 'new' : editor.id} chats={chats} raw={raw} initialChatId={initialCreation?.chatId ?? selectedChat} initialTopicId={initialCreation?.topicId} event={editor === 'new' ? undefined : editor}
+      onClose={() => { setEditor(null); onCreationHandled?.(); }} onSaved={(saved) => { setEditor(null); onCreationHandled?.(); setNotice(`Событие сохранено на ${saved.data.start_date}. Статус публикации указан в карточке.`); refresh(); onCreated?.(saved); }} />}
     {current.kind === 'loading' ? <p role="status" className="panel mt-5">Загружаем события…</p> : current.kind === 'error' ? <div className="panel mt-5" role="alert"><p>{current.error}</p></div> : <>
       {current.events.length === 0 && <p className="panel mt-5 text-sm text-muted">В выбранном периоде событий нет.</p>}
       {current.more && <p role="status" className="my-3 text-sm">Показаны первые 200 событий. Выберите конкретный чат, чтобы сузить список.</p>}
