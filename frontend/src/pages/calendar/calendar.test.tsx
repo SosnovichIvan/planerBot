@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ApiFailure, loadChats, loadEvents } from '../../shared/api';
@@ -77,6 +77,36 @@ it('shows refresh but not creation or settings for a member', async () => {
   expect(screen.getByRole('button', { name: 'Обновить события' }).closest('header')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Создать событие' })).not.toBeInTheDocument();
   expect(screen.queryByText('Настройки чата')).not.toBeInTheDocument();
+});
+
+it('opens creation from a Telegram link only after loading admin permissions, without reopening after closing', async () => {
+  vi.mocked(telegram.initData).mockReturnValue('start_param=create_-1_10');
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  render(<CalendarPage />);
+  expect(await screen.findByRole('dialog', { name: 'Создать событие' })).toBeVisible();
+  expect(screen.getByLabelText('Тема')).toHaveValue('10');
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('does not grant creation through a forged target pointing at a member chat', async () => {
+  vi.mocked(telegram.initData).mockReturnValue('start_param=create_-2_1');
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  render(<CalendarPage />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('нужны права администратора');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Создать событие' }));
+  expect(screen.getByRole('dialog')).toBeVisible();
+  expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Чат' })).toHaveValue('-1');
+});
+
+it('opens a generic creation link with the first administered chat', async () => {
+  vi.mocked(telegram.initData).mockReturnValue('start_param=create');
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  render(<CalendarPage />);
+  const dialog = await screen.findByRole('dialog', { name: 'Создать событие' });
+  expect(within(dialog).getByLabelText('Чат')).toHaveValue('-1');
 });
 
 it('hides data during failure and supports retry', async () => {

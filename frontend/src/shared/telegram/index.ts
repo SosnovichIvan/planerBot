@@ -15,6 +15,14 @@ export function initData(): string {
   return window.Telegram?.WebApp.initData ?? '';
 }
 
+// Navigation hint only. API authorization still uses the complete signed initData.
+export function creationTarget(raw: string): { chatId?: string; topicId?: string } | null {
+  const value = new URLSearchParams(raw).get('start_param');
+  if (value === 'create') return {};
+  const match = /^create_(-[1-9]\d{0,15})_([1-9]\d{0,15})$/.exec(value ?? '');
+  return match ? { chatId: match[1], topicId: match[2] } : null;
+}
+
 export function connectTelegram(): () => void {
   const app = window.Telegram?.WebApp;
   if (!app) return () => {};
