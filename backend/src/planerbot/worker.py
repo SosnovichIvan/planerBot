@@ -1,8 +1,11 @@
+import asyncio
+
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from planerbot.access import ChatAccess
 from planerbot.config import Settings
 from planerbot.network import create_bot
+from planerbot.notices import NoticeDelivery
 from planerbot.publications import Delivery, PublicationRepository
 from planerbot.repository import ChatRepository
 from planerbot.telegram import TelegramGateway
@@ -20,7 +23,22 @@ async def run_worker(settings: Settings | None = None) -> None:
         PublicationRepository(engine), ChatAccess(ChatRepository(engine), gateway, bot.id), gateway
     )
     try:
-        await delivery.run()
+        notices = asyncio.create_task(
+            NoticeDelivery(
+                engine, ChatAccess(ChatRepository(engine), gateway, bot.id), gateway
+            ).run()
+        )
+        publications = asyncio.create_task(delivery.run())
+        try:
+            done, _ = await asyncio.wait(
+                {publications, notices}, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                await task
+        finally:
+            notices.cancel()
+            publications.cancel()
+            await asyncio.gather(notices, publications, return_exceptions=True)
     finally:
         await bot.session.close()
         await engine.dispose()

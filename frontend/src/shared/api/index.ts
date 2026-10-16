@@ -6,6 +6,9 @@ export type Chat = components['schemas']['ChatResponse'];
 export type CalendarEvent = components['schemas']['EventView'];
 export type EventDraft = components['schemas']['EventInput'];
 export type ChatSettings = components['schemas']['ChatSettingsInput'];
+export type EventDetails = components['schemas']['EventDetails'];
+export type Answer = components['schemas']['ResponseInput']['answer'];
+export type Campaign = components['schemas']['CampaignView'];
 
 export class ApiFailure extends Error {
   constructor(public readonly status: number, message = 'Calendar request failed') { super(message); }
@@ -84,5 +87,28 @@ export async function loadChats(raw: string, signal: AbortSignal) {
     chats.push(...data.chats);
     cursor = data.next_cursor ?? undefined;
   } while (cursor !== undefined);
+  const visit = await client.POST('/api/calendar/visit', { signal });
+  if (!visit.response.ok) throw failure(visit.response.status, visit.error);
   return chats;
+}
+
+export async function loadEventDetails(raw: string, chatId: string, eventId: string, signal?: AbortSignal) {
+  return checked(await client(raw).GET('/api/chats/{chat_id}/events/{event_id}', { params: { path: { chat_id: Number(chatId), event_id: eventId } }, signal }));
+}
+
+export async function respondEvent(raw: string, event: CalendarEvent, answer: Answer) {
+  return checked(await client(raw).PUT('/api/chats/{chat_id}/events/{event_id}/response', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id } }, body: { answer } }));
+}
+
+export async function sendCampaign(raw: string, event: CalendarEvent, audience: Answer, text: string, key: string) {
+  return checked(await client(raw).POST('/api/chats/{chat_id}/events/{event_id}/campaigns', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id }, header: { 'Idempotency-Key': key } }, body: { audience, text } }));
+}
+
+export async function campaignStatus(raw: string, event: CalendarEvent, campaignId: string) {
+  return checked(await client(raw).GET('/api/chats/{chat_id}/events/{event_id}/campaigns/{campaign_id}', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id, campaign_id: campaignId } } }));
+}
+
+export async function disablePersonalMessages(raw: string) {
+  const result = await client(raw).DELETE('/api/calendar/notifications');
+  if (!result.response.ok) throw failure(result.response.status, result.error);
 }

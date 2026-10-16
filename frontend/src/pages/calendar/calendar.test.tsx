@@ -1,13 +1,13 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, loadChats, loadEvents } from '../../shared/api';
+import { ApiFailure, loadChats, loadEvents, loadEventDetails, respondEvent } from '../../shared/api';
 import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
 import { event as calendarEvent } from './ui/fixtures.test-data';
 
 vi.mock('../../shared/api', async (original) => ({
-  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }),
+  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }), loadEventDetails: vi.fn(), respondEvent: vi.fn(),
 }));
 
 const chats = [
@@ -19,7 +19,36 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.mocked(loadChats).mockReset();
   vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false });
+  vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false });
+  vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
+});
+
+it('opens a list for a multi-event day, then a card, and refreshes personal markers after voting', async () => {
+  const month = new Date();
+  const day = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-20`;
+  const first = { ...calendarEvent, data: { ...calendarEvent.data, start_date: day, end_date: day } };
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  vi.mocked(loadEvents).mockResolvedValue({ events: [first, { ...first, id: 'other', my_response: 'yes', data: { ...first.data, title: 'Другая встреча' } }], has_more: false });
+  render(<CalendarPage />);
+  const trigger = await screen.findByRole('button', { name: '20, событий: 2' });
+  expect(trigger).toHaveAccessibleDescription('Нужен ваш ответ');
+  await userEvent.click(trigger);
+  const list = screen.getByRole('dialog');
+  expect(within(list).getByText('Другая встреча')).toBeVisible();
+  await userEvent.click(within(list).getByRole('button', { name: /Встреча команды/ }));
+  expect(await screen.findByRole('dialog', { name: 'Встреча команды' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Приду' }));
+  expect(await screen.findByText('Ваш ответ: Приду')).toBeVisible();
+  expect(loadChats).toHaveBeenCalledTimes(2);
+});
+
+it('opens an event deep link after chat permissions are loaded', async () => {
+  vi.mocked(telegram.initData).mockReturnValue('start_param=event_-100100_00000000000040008000000000000001');
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  render(<CalendarPage />);
+  expect(await screen.findByRole('dialog', { name: calendarEvent.data.title })).toBeVisible();
+  expect(loadEventDetails).toHaveBeenCalledWith(expect.any(String), '-100100', calendarEvent.id, expect.any(AbortSignal));
 });
 
 it('opens only events of the clicked day and navigates to their Telegram message', async () => {
@@ -32,9 +61,9 @@ it('opens only events of the clicked day and navigates to their Telegram message
   render(<CalendarPage />);
   await userEvent.click(await screen.findByRole('button', { name: '20, событий: 1' }));
   const dialog = screen.getByRole('dialog');
-  expect(within(dialog).getByRole('heading', { name: event.data.title })).toBeVisible();
+  expect(await within(dialog).findByRole('heading', { name: event.data.title })).toBeVisible();
   expect(within(dialog).queryByText('Другой день')).not.toBeInTheDocument();
-  const link = within(dialog).getByRole('link');
+  const link = within(dialog).getByRole('link', { name: 'Сообщение в Telegram' });
   expect(link).toHaveAttribute('href', event.message_url);
   await userEvent.click(link);
   expect(open).toHaveBeenCalledWith(event.message_url);

@@ -3,9 +3,10 @@ from aiogram.exceptions import (
     TelegramAPIError,
     TelegramBadRequest,
     TelegramNetworkError,
+    TelegramRetryAfter,
     TelegramServerError,
 )
-from aiogram.types import LinkPreviewOptions
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 
 from planerbot.access import AccessUnavailable, Membership
 from planerbot.event_contracts import EventView
@@ -22,6 +23,47 @@ class TelegramGateway:
         except (TimeoutError, TelegramAPIError) as exc:
             raise AccessUnavailable from exc
         return Membership(member.status, getattr(member, "is_member", False))
+
+    async def send_personal(self, user_id: int, event: EventView, body: str) -> None:
+        from planerbot.notices import Deferred
+
+        header = (
+            f"{event.data.title}\n{event.data.start_date} · "
+            f"{event.data.start_time or 'Весь день'} ({event.timezone})\n{event.chat_title}"
+        )
+        location = "\n".join(
+            filter(
+                None,
+                [event.data.place, event.data.address, event.data.map_url, event.data.online_url],
+            )
+        )
+        full = f"{header}\n{location}\n\n{body}"
+        # Never truncate the administrator's message. Long location stays in the linked card.
+        content = full if len(full.encode("utf-16-le")) // 2 <= 4096 else f"{header}\n\n{body}"
+        try:
+            me = await self.bot.get_me(request_timeout=5)
+            await self.bot.send_message(
+                chat_id=user_id,
+                text=content,
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="Открыть событие",
+                                url=f"https://t.me/{me.username}?startapp=event_{event.chat_id}_{event.id.hex}",
+                            )
+                        ]
+                    ]
+                ),
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+                request_timeout=10,
+            )
+        except TelegramRetryAfter as exc:
+            raise Deferred(exc.retry_after) from exc
+        except (TimeoutError, TelegramNetworkError, TelegramServerError) as exc:
+            raise DeliveryUnknown from exc
+        except TelegramAPIError as exc:
+            raise DeliveryRejected from exc
 
     async def send_card(self, event: EventView, message_id: int | None) -> int:
         data = event.data
