@@ -99,3 +99,61 @@ class Publication(Base):
         ),
         Index("publications_status", "status"),
     )
+
+
+class CalendarParticipant(Base):
+    __tablename__ = "calendar_participants"
+    chat_id: Mapped[int] = mapped_column(
+        ForeignKey("chats.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    name: Mapped[str] = mapped_column(String(256))
+
+
+class PersonalContact(Base):
+    __tablename__ = "personal_contacts"
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+
+
+class EventResponse(Base):
+    __tablename__ = "event_responses"
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("events.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    answer: Mapped[str] = mapped_column(String(3))
+    __table_args__ = (CheckConstraint("answer IN ('yes','no')", name="response_answer"),)
+
+
+class MessageCampaign(Base):
+    __tablename__ = "message_campaigns"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
+    sender_id: Mapped[int] = mapped_column(BigInteger)
+    audience: Mapped[str] = mapped_column(String(16))
+    body: Mapped[str] = mapped_column(String(1500))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    __table_args__ = (
+        CheckConstraint("audience IN ('all','yes','no','unanswered')", name="campaign_audience"),
+    )
+
+
+class PersonalNotice(Base):
+    __tablename__ = "personal_notices"
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("message_campaigns.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    status: Mapped[str] = mapped_column(String(16))
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    lease: Mapped[UUID | None]
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','sending','sent','skipped','failed','unknown')",
+            name="notice_status",
+        ),
+        Index("notices_pending", "status", "next_attempt"),
+    )

@@ -2,7 +2,7 @@ import type { CalendarEvent } from '../../../shared/api';
 import { openTelegramMessage } from '../../../shared/telegram';
 import { Modal } from '../../../shared/ui/modal';
 
-export function DayEvents({ date, events, onClose, incomplete = false }: { date: string; events: CalendarEvent[]; onClose: () => void; incomplete?: boolean }) {
+export function DayEvents({ date, events, onClose, onOpen, incomplete = false }: { date: string; events: CalendarEvent[]; onClose: () => void; onOpen?: (event: CalendarEvent) => void; incomplete?: boolean }) {
   const title = new Date(`${date}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   return <Modal title={`События ${title}`} onClose={onClose}>
     {incomplete && <p className="mt-4 text-sm" role="status">Загружены не все события месяца. Закройте окно и выберите конкретный чат, чтобы уточнить список.</p>}
@@ -15,7 +15,8 @@ export function DayEvents({ date, events, onClose, incomplete = false }: { date:
         <p className="mt-2 break-words text-sm">{[event.data.place, event.data.address].filter(Boolean).join(', ') || event.data.online_url || event.data.map_url || 'Место уточняется'}</p>
       </>;
       return <li key={event.id}>
-        {event.message_url ? <a className="block rounded-xl border border-line p-4 hover:bg-canvas" href={event.message_url}
+        {onOpen ? <div className="rounded-xl border border-line p-4"><button className="min-h-11 w-full cursor-pointer text-left" onClick={() => onOpen(event)}>{content}{event.status === 'active' && (event.my_response ?? 'unanswered') === 'unanswered' && <span className="mt-2 block text-sm font-semibold text-attention">Нужен ваш ответ</span>}</button></div> :
+        event.message_url ? <a className="block rounded-xl border border-line p-4 hover:bg-canvas" href={event.message_url}
           onClick={(e) => { if (openTelegramMessage(event.message_url!)) e.preventDefault(); }}>
           {content}<p className="mt-3 text-sm font-medium underline">Открыть сообщение в Telegram</p>
         </a> : <div className="rounded-xl border border-line p-4">{content}

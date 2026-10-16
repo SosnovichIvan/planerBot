@@ -13,7 +13,7 @@ const publicationLabels: Record<string, string> = {
   failed: 'Не удалось опубликовать', unknown: 'Результат отправки неизвестен',
 };
 
-export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget, initialCreation, onCreationHandled }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[], more?: boolean) => void; toolbarTarget?: HTMLElement | null; initialCreation?: { chatId?: string; topicId?: string } | null; onCreationHandled?: () => void }) {
+export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget, initialCreation, onCreationHandled, onOpen, revision = 0 }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[], more?: boolean) => void; toolbarTarget?: HTMLElement | null; initialCreation?: { chatId?: string; topicId?: string } | null; onCreationHandled?: () => void; onOpen?: (event: CalendarEvent) => void; revision?: number }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const allowedCreation = !!initialCreation && chats.some((chat) => chat.can_manage && (!initialCreation.chatId || chat.id === initialCreation.chatId));
   const [editor, setEditor] = useState<CalendarEvent | 'new' | null>(() => allowedCreation ? 'new' : null);
@@ -22,7 +22,7 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const { start, end } = monthRange(month);
-  const queryKey = `${start}:${selectedChat}:${attempt}`;
+  const queryKey = `${start}:${selectedChat}:${attempt}:${revision}`;
   const [loadedKey, setLoadedKey] = useState('');
 
   useEffect(() => {
@@ -34,13 +34,12 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
 
   useEffect(() => {
     const controller = new AbortController();
-    onLoaded?.([]);
     loadEvents(raw, controller.signal, { start, end,
       chat_id: selectedChat === 'all' ? undefined : Number(selectedChat),
     }).then((data) => {
       if (!controller.signal.aborted) { setState({ kind: 'ready', events: data.events, more: data.has_more }); setLoadedKey(queryKey); onLoaded?.(data.events, data.has_more); }
     }, (error: unknown) => {
-      if (!controller.signal.aborted) { setState({ kind: 'error', error: errorText(error) }); setLoadedKey(queryKey); }
+      if (!controller.signal.aborted) { setState({ kind: 'error', error: errorText(error) }); setLoadedKey(queryKey); onLoaded?.([]); }
     });
     return () => controller.abort();
   }, [raw, start, end, selectedChat, queryKey, onLoaded]);
@@ -77,6 +76,8 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
       <ul className="mt-5 space-y-4">{current.events.map((event) => <li className="panel" key={event.id}>
         <p className="mb-2 text-xs text-muted">{event.chat_title} · {event.topic_title}</p>
         <h3 className="break-words text-lg font-semibold">{event.data.title}</h3>
+        {event.status === 'active' && (event.my_response ?? 'unanswered') === 'unanswered' && <p className="mt-2 text-sm font-semibold text-attention">Нужен ваш ответ</p>}
+        {onOpen && <button className="secondary-button mt-3" onClick={() => onOpen(event)}>Открыть событие</button>}
         <p className="mt-2 text-sm">{event.data.start_date} · {event.data.start_time ?? 'Весь день'}{event.data.end_time && ` — ${event.data.end_date ?? event.data.start_date} ${event.data.end_time}`} · {event.timezone}</p>
         <p className="mt-2 text-sm">{event.data.place_pending ? 'Место уточняется' : [event.data.place, event.data.address].filter(Boolean).join(', ')}</p>
         {event.data.map_url && <a className="mt-2 block text-sm underline" href={event.data.map_url} target="_blank" rel="noreferrer">Открыть карту</a>}

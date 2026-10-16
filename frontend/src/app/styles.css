@@ -7,6 +7,7 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-accent: var(--accent);
+  --color-attention: var(--attention);
 }
 
 :root {
@@ -19,6 +20,7 @@
   --muted: #566376;
   --line: #c4cbd7;
   --accent: #3256c5;
+  --attention: #b42332;
   color-scheme: light;
 }
 
@@ -29,6 +31,7 @@
   --muted: #b1bdd0;
   --line: #66758e;
   --accent: #4065d7;
+  --attention: #ff9ca7;
   color-scheme: dark;
 }
 

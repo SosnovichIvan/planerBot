@@ -64,6 +64,7 @@ class EventInput(BaseModel):
     online_url: str = Field(default="", max_length=400)
     place_pending: bool = True
     tags: list[str] = Field(default_factory=list, max_length=8)
+    notify_members: bool = False
 
     @field_validator("map_url", "online_url")
     @classmethod
@@ -166,6 +167,7 @@ class EventView(BaseModel):
     publication_status: str | None
     message_url: str | None = None
     can_manage: bool = False
+    my_response: Literal["yes", "no", "unanswered"] = "unanswered"
 
 
 class EventsView(BaseModel):

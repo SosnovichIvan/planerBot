@@ -27,12 +27,38 @@ from planerbot.access import (
 )
 from planerbot.event_contracts import Conflict, InvalidEvent
 from planerbot.events import EventService
+from planerbot.rsvp import RsvpService
 
 
 def create_dispatcher(
-    store: ChatStore, gateway: MembershipGateway, events: EventService | None = None
+    store: ChatStore,
+    gateway: MembershipGateway,
+    events: EventService | None = None,
+    rsvp: RsvpService | None = None,
 ) -> Dispatcher:
     router = Router()
+
+    if rsvp is not None:
+
+        @router.chat_member()
+        async def participant_changed(event: ChatMemberUpdated) -> None:
+            if not Membership(
+                event.new_chat_member.status, getattr(event.new_chat_member, "is_member", False)
+            ).present:
+                await rsvp.remove(event.chat.id, event.new_chat_member.user.id)
+
+        @router.message(F.chat.type == "private", F.write_access_allowed)
+        async def write_access(message: Message) -> None:
+            if message.from_user is not None:
+                await rsvp.contact(message.from_user.id, True)
+
+        @router.message(F.chat.type == "private", Command("stop"))
+        async def stop_personal(message: Message) -> None:
+            if message.from_user is not None:
+                await rsvp.contact(message.from_user.id, False)
+                await message.answer(
+                    "Личные уведомления отключены. Чтобы включить их снова, отправьте /start."
+                )
 
     def calendar_keyboard() -> ReplyKeyboardMarkup:
         return ReplyKeyboardMarkup(
@@ -88,6 +114,8 @@ def create_dispatcher(
 
     @router.my_chat_member()
     async def bot_membership(event: ChatMemberUpdated, bot: Bot) -> None:
+        if rsvp is not None and event.chat.type == "private":
+            await rsvp.contact(event.chat.id, event.new_chat_member.status != "kicked")
         if event.chat.type not in {"group", "supergroup"}:
             return
         active = Membership(event.new_chat_member.status).admin
@@ -163,6 +191,13 @@ def create_dispatcher(
     @router.message(F.text == "Календарь")
     @router.message(Command("calendar", "start", "settings"))
     async def calendar(message: Message, bot: Bot) -> None:
+        if (
+            rsvp is not None
+            and message.chat.type == "private"
+            and message.from_user is not None
+            and (message.text or "").split()[0].split("@")[0] == "/start"
+        ):
+            await rsvp.contact(message.from_user.id, True)
         if message.chat.type in {"group", "supergroup"} and message.text != "Календарь":
             await message.answer(
                 "Кнопка «Календарь» доступна на клавиатуре чата.",

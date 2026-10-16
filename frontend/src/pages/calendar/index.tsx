@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiFailure, loadChats } from '../../shared/api';
-import { creationTarget, initData } from '../../shared/telegram';
+import { creationTarget, eventTarget, initData } from '../../shared/telegram';
 import { eventDayCounts, eventsOnDate, monthDays, monthRange, shiftMonth } from './model/month';
 import type { CalendarEvent } from '../../shared/api';
 import { EventsPanel } from './ui/events-panel';
 import { SettingsForm } from './ui/settings-form';
 import { DayEvents } from './ui/day-events';
+import { EventDetails } from './ui/event-details';
 
 type Chats = Awaited<ReturnType<typeof loadChats>>;
 type LoadState = { kind: 'loading' } | { kind: 'ready'; chats: Chats } | { kind: 'error'; status: number };
@@ -19,11 +20,14 @@ export function CalendarPage() {
   const [creationConsumed, setCreationConsumed] = useState(false);
   const [eventState, setEventState] = useState<{ scope: string; events: CalendarEvent[]; more: boolean }>({ scope: '', events: [], more: false });
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState(() => eventTarget(initData()));
   const raw = initData();
   const eventsScope = `${raw}:${monthRange(month).start}:${selectedChat}`;
   const recordEvents = useCallback((events: CalendarEvent[], more = false) => setEventState({ scope: eventsScope, events, more }), [eventsScope]);
   const monthEvents = eventState.scope === eventsScope && state.kind === 'ready' ? eventState.events : [];
   const counts = eventDayCounts(monthEvents, month);
+  const unanswered = eventDayCounts(monthEvents.filter((event) => event.status === 'active' && (event.my_response ?? 'unanswered') === 'unanswered'), month);
+  const openEvent = (event: CalendarEvent) => { setSelectedDay(null); setSelectedEvent({ chatId: event.chat_id, eventId: event.id }); };
   const selectedDate = selectedDay === null ? null : monthRange(month).start.slice(0, 8) + String(selectedDay).padStart(2, '0');
   const intent = creationConsumed ? null : creationTarget(raw);
 
@@ -93,17 +97,23 @@ export function CalendarPage() {
                 <tr key={week}>{Array.from({ length: 7 }, (_, weekday) => {
                   const day = monthDays(month)[week * 7 + weekday];
                   return <td key={weekday} className="h-11 sm:h-12">{day && counts[day] > 0 ?
-                    <button className="relative flex h-11 w-full cursor-pointer items-center justify-center rounded-xl hover:bg-canvas" aria-label={`${day}, событий: ${counts[day]}`} onClick={() => setSelectedDay(day)}>{day}<span className="absolute bottom-1 size-1.5 rounded-full bg-accent" aria-hidden="true" /></button>
+                    <button className={`relative flex h-11 w-full cursor-pointer items-center justify-center rounded-xl hover:bg-canvas ${unanswered[day] ? 'text-attention' : ''}`} aria-label={`${day}, событий: ${counts[day]}`} aria-description={unanswered[day] ? 'Нужен ваш ответ' : undefined} onClick={() => {
+                      const date = monthRange(month).start.slice(0, 8) + String(day).padStart(2, '0');
+                      const events = eventsOnDate(monthEvents, date);
+                      if (events.length === 1 && !eventState.more) openEvent(events[0]); else setSelectedDay(day);
+                    }}>{day}<span className={`absolute bottom-1 size-1.5 rounded-full ${unanswered[day] ? 'bg-attention' : 'bg-accent'}`} aria-hidden="true" /></button>
                     : <span className="inline-flex size-9 items-center justify-center">{day}</span>}</td>;
                 })}</tr>
               ))}</tbody>
             </table>
+            {Object.keys(unanswered).length > 0 && <p className="mt-4 text-xs text-attention">Красным отмечены дни, где нужен ваш ответ.</p>}
           </section>
         </div>
       )}
       {raw && state.kind === 'ready' && <>
-        {selectedDate && <DayEvents date={selectedDate} events={eventsOnDate(monthEvents, selectedDate)} incomplete={eventState.more} onClose={() => setSelectedDay(null)} />}
-        <EventsPanel chats={chats} raw={raw} month={month} selectedChat={selectedChat} toolbarTarget={toolbarTarget} initialCreation={intent} onCreationHandled={() => setCreationConsumed(true)} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />
+        {selectedDate && <DayEvents date={selectedDate} events={eventsOnDate(monthEvents, selectedDate)} incomplete={eventState.more} onOpen={openEvent} onClose={() => setSelectedDay(null)} />}
+        {selectedEvent && <EventDetails key={`${raw}:${selectedEvent.chatId}:${selectedEvent.eventId}`} raw={raw} {...selectedEvent} onClose={() => setSelectedEvent(null)} onChanged={() => setAttempt((value) => value + 1)} />}
+        <EventsPanel chats={chats} raw={raw} month={month} selectedChat={selectedChat} toolbarTarget={toolbarTarget} initialCreation={intent} onOpen={openEvent} revision={attempt} onCreationHandled={() => setCreationConsumed(true)} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />
         {visibleChats.filter((chat) => chat.can_manage).map((chat) => <section className="panel mt-6" key={chat.id} aria-label={`Настройки: ${chat.title}`}>
           <h2 className="text-sm font-semibold">{chat.title}</h2>
           <SettingsForm chat={chat} raw={raw} onSaved={retry} />

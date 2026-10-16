@@ -6,6 +6,7 @@ from sqlalchemy import Date, and_, case, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from planerbot.campaigns import enqueue_campaign
 from planerbot.event_contracts import Conflict, EventInput, EventsView, EventView, MissingEvent
 from planerbot.models import Chat, Event, Publication, Topic
 
@@ -94,8 +95,11 @@ class EventRepository:
         update_id: int = 0,
     ) -> EventView:
         start, end = data.times(timezone)
+        canonical = data.model_dump_json(exclude={"notify_members"})
+        # Keep fingerprints and stored payloads compatible with pre-RSVP writers.
+        intent = ":notify" if data.notify_members else ""
         fingerprint = hashlib.sha256(
-            f"{chat_id}:{user_id}:{data.model_dump_json()}".encode()
+            f"{chat_id}:{user_id}:{canonical}{intent}".encode()
         ).hexdigest()
         async with self.sessions.begin() as session:
             new_id = await session.scalar(
@@ -106,7 +110,7 @@ class EventRepository:
                     topic_id=data.topic_id,
                     creator_id=user_id,
                     editor_id=user_id,
-                    payload=data.model_dump(mode="json"),
+                    payload=data.model_dump(mode="json", exclude={"notify_members"}),
                     fingerprint=fingerprint,
                     timezone=timezone,
                     local_date=data.start_date,
@@ -147,6 +151,17 @@ class EventRepository:
             await session.flush()
             if changed:
                 await enqueue(session, event)
+            if new_id is not None and data.notify_members and status == "active":
+                from uuid import NAMESPACE_URL, uuid5
+
+                await enqueue_campaign(
+                    session,
+                    event,
+                    user_id,
+                    uuid5(NAMESPACE_URL, f"invitation:{event_id}"),
+                    "all",
+                    "Новое событие. Отметьте, сможете ли вы прийти.",
+                )
             return await self.read(session, chat_id, event_id)
 
     @staticmethod
@@ -154,7 +169,10 @@ class EventRepository:
         if event.topic_id != data.topic_id:
             raise Conflict("После создания события тему менять нельзя")
         event.starts_at, event.ends_at = data.times(timezone)
-        event.payload, event.local_date = data.model_dump(mode="json"), data.start_date
+        event.payload, event.local_date = (
+            data.model_dump(mode="json", exclude={"notify_members"}),
+            data.start_date,
+        )
         event.timezone = timezone
         event.version += 1
 
