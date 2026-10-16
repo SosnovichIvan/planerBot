@@ -59,7 +59,13 @@ async def verify() -> None:
             await connection.scalar(text("SELECT payload->>'title' FROM events WHERE chat_id=-999"))
             == "Existing event"
         )
-        assert await connection.scalar(text("SELECT count(*) FROM calendar_participants")) == 0
+        assert await connection.scalar(text("SELECT count(*) FROM calendar_participants")) == 1
+        assert (
+            await connection.scalar(text("SELECT answer FROM event_responses WHERE user_id=42"))
+            == "yes"
+        )
+        assert await connection.scalar(text("SELECT count(*) FROM event_revisions")) == 0
+        assert await connection.scalar(text("SELECT count(*) FROM event_seen")) == 0
     await engine.dispose()
 
 
@@ -89,11 +95,31 @@ async def seed_event() -> None:
     await engine.dispose()
 
 
+async def seed_response() -> None:
+    engine = create_async_engine(url)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("INSERT INTO calendar_participants VALUES (-999,42,'Viewer')")
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO event_responses VALUES "
+                "('00000000-0000-4000-8000-000000000099',42,'yes')"
+            )
+        )
+    await engine.dispose()
+
+
+alembic("downgrade", "base")
+alembic("upgrade", "head")
+alembic("check")
 alembic("downgrade", "0001")
 asyncio.run(seed())
 alembic("upgrade", "0002")
 asyncio.run(seed_event())
+alembic("upgrade", "0003")
+asyncio.run(seed_response())
 alembic("upgrade", "head")
 asyncio.run(verify())
 alembic("check")
-print("Populated 0001 -> 0002 -> 0003 preserved chats, topics, events and publications")
+print("Empty upgrade and populated 0001 -> 0004 preserved chats, events, publications and RSVP")

@@ -101,6 +101,24 @@ class Publication(Base):
     )
 
 
+class EventRevision(Base):
+    __tablename__ = "event_revisions"
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("events.id", ondelete="CASCADE"), primary_key=True
+    )
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    previous_payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+
+
+class EventSeen(Base):
+    __tablename__ = "event_seen"
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("events.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    version: Mapped[int] = mapped_column(Integer)
+
+
 class CalendarParticipant(Base):
     __tablename__ = "calendar_participants"
     chat_id: Mapped[int] = mapped_column(

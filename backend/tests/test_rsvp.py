@@ -116,7 +116,7 @@ async def test_campaign_snapshots_permissions_replay_and_new_event(engine):
         assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == 3
         stored = await session.get(Event, invited.id)
         assert "notify_members" not in stored.payload
-    await service.change(42, A, invited.id, 1, data=draft(notify_members=True, title="Изменено"))
+    await service.change(42, A, invited.id, 1, data=draft(title="Изменено"))
     async with rsvp.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == 3
     await rsvp.detail(admin, A, event.id, "yes")

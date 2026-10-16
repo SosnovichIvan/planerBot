@@ -1,13 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, campaignStatus, disablePersonalMessages, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
 import * as telegram from '../../../shared/telegram';
 import type { EventDetails as Details } from '../../../shared/api';
 import { EventDetails } from './event-details';
-import { event } from './fixtures.test-data';
+import { chats, event } from './fixtures.test-data';
 
-vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
+vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), editEvent: vi.fn(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
 const details = (admin = true, answered = false): Details => ({ event: { ...event, can_manage: admin, my_response: answered ? 'yes' : 'unanswered' }, counts: answered ? { yes: 1, no: 1, unanswered: 2 } : null, personal_messages_enabled: false });
 function show(onClose = vi.fn(), onChanged = vi.fn()) { return render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={onClose} onChanged={onChanged} />); }
 
@@ -18,6 +18,21 @@ beforeEach(() => {
   vi.mocked(sendCampaign).mockReset().mockResolvedValue({ id: 'campaign', statuses: {} });
   vi.mocked(campaignStatus).mockReset().mockResolvedValue({ id: 'campaign', statuses: { sent: 1, pending: 2, unknown: 1 } });
   vi.mocked(disablePersonalMessages).mockReset().mockResolvedValue();
+});
+
+it('shows server changes and lets an admin edit through the event card without resetting votes', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.mocked(editEvent).mockResolvedValue({ ...event, version: 2 });
+  vi.mocked(loadEventDetails).mockResolvedValue({ ...details(true, true), event: { ...event, my_response: 'yes', changes: [{ field: 'place', before: 'Парк', after: 'Кафе' }, { field: 'other', before: '', after: 'Новое' }] } });
+  render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={vi.fn()} onChanged={vi.fn()} chats={chats} />);
+  expect(await screen.findByRole('region', { name: 'Что изменилось' })).toHaveTextContent('Парк');
+  await userEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+  await userEvent.type(screen.getByLabelText('Место встречи'), ' №2');
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Изменения сохранены');
+  expect(screen.getByText('Ваш ответ: Приду')).toBeVisible();
 });
 
 it('hides all statistics until the viewer votes, including an administrator, and hides them again on reset', async () => {
@@ -37,7 +52,7 @@ it('hides all statistics until the viewer votes, including an administrator, and
   await userEvent.click(screen.getByRole('button', { name: 'Сбросить ответ' }));
   expect(await screen.findByText('Нужен ваш ответ')).toBeVisible();
   expect(screen.queryByLabelText('Ответы участников календаря')).not.toBeInTheDocument();
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(4);
 });
 
 it('confirms a group broadcast, reports delivery separately and prevents double submits', async () => {
@@ -63,6 +78,7 @@ it('confirms a group broadcast, reports delivery separately and prevents double 
   expect(screen.getByText('Доставка неизвестна: 1')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Не приду: 1' }));
   expect(screen.getByRole('heading', { name: 'Сообщение: Не приду' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму отправки' }));
   await userEvent.click(screen.getByRole('button', { name: 'Приду: 1' }));
   expect(screen.getByRole('heading', { name: 'Сообщение: Приду' })).toBeVisible();
 });
@@ -78,13 +94,54 @@ it('retains a frozen request after an uncertain outcome and retries with the sam
   expect(await screen.findByRole('alert')).toHaveTextContent('Результат запроса неизвестен');
   expect(screen.getByLabelText('Текст сообщения')).toBeDisabled();
   confirm.mockReturnValue(false);
-  await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму отправки' }));
   expect(close).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Повторить тот же запрос' }));
   await screen.findByText(/поставлена в очередь/);
   expect(vi.mocked(sendCampaign).mock.calls[0]).toEqual(vi.mocked(sendCampaign).mock.calls[1]);
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
   expect(close).toHaveBeenCalledOnce();
+});
+
+it('opens a separate top-level form for each group and Escape closes only the form', async () => {
+  vi.mocked(loadEventDetails).mockResolvedValue(details(true, true));
+  const close = vi.fn();
+  document.body.style.overflow = 'auto';
+  const view = show(close);
+  await screen.findByText('Ваш ответ: Приду');
+  for (const label of ['Приду: 1', 'Не приду: 1', 'Не проголосовали: 2']) {
+    const trigger = screen.getByRole('button', { name: label });
+    await userEvent.click(trigger);
+    const form = screen.getByRole('dialog', { name: `Сообщение: ${label.replace(/: \d+$/, '')}` });
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(form).toContainElement(screen.getByLabelText('Текст сообщения'));
+    expect(document.body.style.overflow).toBe('hidden');
+    fireEvent(form, new Event('cancel', { bubbles: true, cancelable: true }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(close).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+  }
+  view.unmount();
+  expect(document.body.style.overflow).toBe('auto');
+  document.body.style.overflow = '';
+});
+
+it('confirms discarding a draft and restores scroll even when both dialogs unmount together', async () => {
+  vi.mocked(loadEventDetails).mockResolvedValue(details(true, true));
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const view = show();
+  await userEvent.click(await screen.findByRole('button', { name: 'Приду: 1' }));
+  await userEvent.type(screen.getByLabelText('Текст сообщения'), 'Черновик');
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(screen.getByLabelText('Текст сообщения')).toHaveValue('Черновик');
+  confirm.mockReturnValue(true);
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(screen.queryByLabelText('Текст сообщения')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Не приду: 1' }));
+  expect(screen.getByLabelText('Текст сообщения')).toHaveValue('');
+  view.unmount();
+  expect(document.body.style.overflow).toBe('');
 });
 
 it('keeps editable message text after a definitive rejection', async () => {

@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ApiFailure, createEvent, eventAction, loadEvents } from '../../../shared/api';
 import { EventsPanel } from './events-panel';
 import { chats, event } from './fixtures.test-data';
+import { selectDate } from '../../../shared/ui/controls.test-support';
 
 vi.mock('../../../shared/api', async (original) => ({
   ...await original<typeof import('../../../shared/api')>(), loadEvents: vi.fn(), eventAction: vi.fn(), createEvent: vi.fn(),
@@ -22,15 +23,15 @@ it('renders event details without topic/tag filters', async () => {
   render(panel(chats[0].id));
   expect(await screen.findByRole('heading', { name: event.data.title })).toBeVisible();
   expect(screen.getByText('Кафе, Москва')).toBeVisible();
-  expect(screen.getByRole('link', { name: 'Открыть карту' })).toHaveAttribute('href', event.data.map_url);
-  expect(screen.getByRole('link', { name: 'Подключиться онлайн' })).toHaveAttribute('href', event.data.online_url);
+  expect(screen.queryByRole('link', { name: 'Открыть карту' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Подключиться онлайн' })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Тема событий')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Фильтр по тегу')).not.toBeInTheDocument();
   expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: -100100 }));
   await userEvent.click(screen.getByRole('button', { name: 'Изменить' }));
-  expect(screen.getByRole('heading', { name: 'Изменить событие' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Редактировать событие' })).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
-  expect(screen.queryByRole('heading', { name: 'Изменить событие' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Редактировать событие' })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Создать событие' }));
   expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeVisible();
 });
@@ -95,7 +96,7 @@ it('creates an event and refreshes its list with a navigation callback', async (
   render(<EventsPanel chats={chats} raw="signed" month={new Date(2026, 9, 1)} selectedChat="all" onCreated={created} />);
   await userEvent.click(screen.getByRole('button', { name: 'Создать событие' }));
   await userEvent.type(screen.getByLabelText('Название'), 'Новая встреча');
-  fireEvent.change(screen.getByLabelText('Дата начала'), { target: { value: '2026-10-20' } });
+  await selectDate('Дата начала', '2026-10-20');
   await userEvent.type(screen.getByLabelText('Место встречи'), 'Кафе');
   await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
   await waitFor(() => expect(created).toHaveBeenCalledWith(event));
