@@ -13,7 +13,7 @@ const publicationLabels: Record<string, string> = {
   failed: 'Не удалось опубликовать', unknown: 'Результат отправки неизвестен',
 };
 
-export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget, initialCreation, onCreationHandled }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[]) => void; toolbarTarget?: HTMLElement | null; initialCreation?: { chatId?: string; topicId?: string } | null; onCreationHandled?: () => void }) {
+export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget, initialCreation, onCreationHandled }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[], more?: boolean) => void; toolbarTarget?: HTMLElement | null; initialCreation?: { chatId?: string; topicId?: string } | null; onCreationHandled?: () => void }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const allowedCreation = !!initialCreation && chats.some((chat) => chat.can_manage && (!initialCreation.chatId || chat.id === initialCreation.chatId));
   const [editor, setEditor] = useState<CalendarEvent | 'new' | null>(() => allowedCreation ? 'new' : null);
@@ -38,7 +38,7 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
     loadEvents(raw, controller.signal, { start, end,
       chat_id: selectedChat === 'all' ? undefined : Number(selectedChat),
     }).then((data) => {
-      if (!controller.signal.aborted) { setState({ kind: 'ready', events: data.events, more: data.has_more }); setLoadedKey(queryKey); onLoaded?.(data.events); }
+      if (!controller.signal.aborted) { setState({ kind: 'ready', events: data.events, more: data.has_more }); setLoadedKey(queryKey); onLoaded?.(data.events, data.has_more); }
     }, (error: unknown) => {
       if (!controller.signal.aborted) { setState({ kind: 'error', error: errorText(error) }); setLoadedKey(queryKey); }
     });

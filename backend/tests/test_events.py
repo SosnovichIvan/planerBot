@@ -6,6 +6,7 @@ import pytest
 from event_helpers import STAMP, A, B, draft, services
 from planerbot.access import AccessDenied
 from planerbot.event_contracts import ChatSettingsInput, Conflict, InvalidEvent, MissingEvent
+from planerbot.event_repository import message_link
 from planerbot.models import Chat, Event, Publication
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -136,7 +137,14 @@ async def test_legacy_member_policy_cannot_allow_creation(engine, command):
 async def test_filters_disable_topics_and_bot_command(engine):
     service, _, _ = await services(engine)
     await service.import_message(
-        42, A, 10, "/event\nНазвание: Встреча\nДата: 2026-10-20", 8, STAMP, 1, command=True
+        42,
+        A,
+        10,
+        "/event\nНазвание: Встреча\nДата: 2026-10-20\nМесто: Парк",
+        8,
+        STAMP,
+        1,
+        command=True,
     )
     first = await service.create(42, B, draft(topic_id=20), uuid4())
     result = await service.list(42, date(2026, 10, 1), date(2026, 11, 1), None, 20, "#КОМАНДА")
@@ -145,7 +153,7 @@ async def test_filters_disable_topics_and_bot_command(engine):
         await service.list(42, date(2026, 10, 1), date(2027, 11, 1), None, None, None)
     await service.settings(42, A, settings(confirmation_required=True))
     pending = await service.import_message(
-        42, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20", 9, STAMP, 1
+        42, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20\nМесто: Парк", 9, STAMP, 1
     )
     assert pending.status == "pending"
     await service.settings(42, A, settings(2).model_copy(update={"enabled_topic_ids": []}))
@@ -188,8 +196,46 @@ async def test_request_key_cannot_reserve_another_chats_import_id(engine):
     predicted = uuid5(NAMESPACE_URL, f"telegram:{A}:100")
     other = await service.create(44, B, draft(topic_id=20), predicted)
     imported = await service.import_message(
-        42, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20", 100, STAMP, 1
+        42, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20\nМесто: Парк", 100, STAMP, 1
     )
     assert other.id != imported.id
     with pytest.raises(AccessDenied):
         await service.change(44, A, imported.id, 1, action="cancel")
+
+
+async def test_new_writes_require_location_but_legacy_reads_are_preserved(engine):
+    service, _, _ = await services(engine)
+    missing = draft(place="", address="", online_url="", place_pending=True)
+    with pytest.raises(InvalidEvent, match="место встречи или ссылку"):
+        await service.create(42, A, missing, uuid4())
+    with pytest.raises(InvalidEvent, match="место встречи или ссылку"):
+        await service.import_message(
+            42, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20", 8, STAMP, 1
+        )
+    created = await service.create(42, A, draft(meeting_format="hybrid", online_url=""), uuid4())
+    with pytest.raises(InvalidEvent, match="место встречи или ссылку"):
+        await service.change(42, A, created.id, 1, data=missing)
+    linked = await service.create(
+        42,
+        A,
+        draft(place="", address="", online_url="https://example.test/meet", place_pending=True),
+        uuid4(),
+    )
+    assert not linked.data.place_pending
+    legacy = await service.events.create(A, 42, missing, "UTC", uuid4())
+    assert legacy.data.place_pending
+    listed = await service.list(42, date(2026, 10, 1), date(2026, 11, 1), A, None, None)
+    assert any(event.id == legacy.id and event.data.place_pending for event in listed.events)
+
+
+@pytest.mark.parametrize(
+    "chat,message,topic,expected",
+    [
+        (-100100, 5, 10, "https://t.me/c/100/10/5"),
+        (-100100, 5, 1, "https://t.me/c/100/5"),
+        (-100100, None, 10, None),
+        (-42, 5, 1, None),
+    ],
+)
+def test_message_links_include_topic_when_available(chat, message, topic, expected):
+    assert message_link(chat, message, topic) == expected

@@ -107,7 +107,7 @@ async def test_settings_approval_and_retry_routes(engine):
             await client.put(f"/api/chats/{A}/settings", headers=headers, json=settings)
         ).status_code == 204
         pending = await service.import_message(
-            42, A, 10, "#событие\nНазвание: Встреча\nДата: 2026-10-20", 1, STAMP, 1
+            42, A, 10, "#событие\nНазвание: Встреча\nДата: 2026-10-20\nМесто: Парк", 1, STAMP, 1
         )
         assert (
             await client.post(

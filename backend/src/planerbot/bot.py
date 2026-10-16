@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import (
     BotCommand,
@@ -11,7 +11,9 @@ from aiogram.types import (
     ChatMemberUpdated,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
     TelegramObject,
     Update,
 )
@@ -31,6 +33,14 @@ def create_dispatcher(
     store: ChatStore, gateway: MembershipGateway, events: EventService | None = None
 ) -> Dispatcher:
     router = Router()
+
+    def calendar_keyboard() -> ReplyKeyboardMarkup:
+        return ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="Календарь")]],
+            resize_keyboard=True,
+            is_persistent=True,
+            one_time_keyboard=False,
+        )
 
     async def calendar_markup(bot: Bot, chat_id: int) -> InlineKeyboardMarkup:
         me = await bot.get_me()
@@ -108,6 +118,11 @@ def create_dispatcher(
         if not Membership(event.old_chat_member.status).admin:
             await bot.send_message(
                 event.chat.id,
+                "Кнопка «Календарь» доступна на клавиатуре чата.",
+                reply_markup=calendar_keyboard(),
+            )
+            await bot.send_message(
+                event.chat.id,
                 "Календарь подключён.",
                 reply_markup=await calendar_markup(bot, event.chat.id),
             )
@@ -141,11 +156,18 @@ def create_dispatcher(
         )
         await store.register(message.chat.id, message.chat.title or "Чат", thread_id, topic_title)
         await message.answer(
-            "Чат и тема подключены. Проверьте часовой пояс и темы: /settings. Календарь: /calendar"
+            "Чат и тема подключены. Проверьте часовой пояс и темы: /settings. Календарь: /calendar",
+            reply_markup=calendar_keyboard(),
         )
 
+    @router.message(F.text == "Календарь")
     @router.message(Command("calendar", "start", "settings"))
     async def calendar(message: Message, bot: Bot) -> None:
+        if message.chat.type in {"group", "supergroup"} and message.text != "Календарь":
+            await message.answer(
+                "Кнопка «Календарь» доступна на клавиатуре чата.",
+                reply_markup=calendar_keyboard(),
+            )
         me = await bot.get_me()
         context = (
             f"chat_{message.chat.id}"

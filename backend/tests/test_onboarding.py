@@ -70,6 +70,8 @@ async def test_admin_promotion_connects_without_setup(chat_type, forum, title):
     ]
     assert commands[0].scope.type == "chat"
     assert commands[1].scope.type == "chat_administrators"
+    assert calls[-2].reply_markup.keyboard[0][0].text == "Календарь"
+    assert calls[-2].reply_markup.is_persistent
     assert calls[-1].reply_markup.inline_keyboard[0][0].url.endswith("?startapp=chat_-1")
 
 

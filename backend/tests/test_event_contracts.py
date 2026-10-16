@@ -35,12 +35,25 @@ def test_settings_and_fields():
         {"start_time": None, "end_time": "20:00"},
         {"end_date": "2026-10-21", "end_time": None},
         {"place": "", "address": ""},
-        {"meeting_format": "online", "online_url": ""},
     ],
 )
 def test_invalid_fields(fields):
     with pytest.raises(ValidationError):
         draft(**fields)
+
+
+@pytest.mark.parametrize("meeting_format", ["offline", "online", "hybrid"])
+@pytest.mark.parametrize(
+    "location",
+    [
+        {"place": "Кафе"},
+        {"address": "Москва"},
+        {"online_url": "https://example.test/meet"},
+        {"map_url": "https://example.test/map"},
+    ],
+)
+def test_either_place_or_link_is_sufficient_for_any_format(meeting_format, location):
+    assert draft(**{"meeting_format": meeting_format, "place": "", "address": "", **location})
 
 
 def test_time_order_and_dst():
