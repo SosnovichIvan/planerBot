@@ -63,6 +63,7 @@ it('confirms a group broadcast, reports delivery separately and prevents double 
   expect(screen.getByText('Доставка неизвестна: 1')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Не приду: 1' }));
   expect(screen.getByRole('heading', { name: 'Сообщение: Не приду' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму отправки' }));
   await userEvent.click(screen.getByRole('button', { name: 'Приду: 1' }));
   expect(screen.getByRole('heading', { name: 'Сообщение: Приду' })).toBeVisible();
 });
@@ -78,13 +79,54 @@ it('retains a frozen request after an uncertain outcome and retries with the sam
   expect(await screen.findByRole('alert')).toHaveTextContent('Результат запроса неизвестен');
   expect(screen.getByLabelText('Текст сообщения')).toBeDisabled();
   confirm.mockReturnValue(false);
-  await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму отправки' }));
   expect(close).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Повторить тот же запрос' }));
   await screen.findByText(/поставлена в очередь/);
   expect(vi.mocked(sendCampaign).mock.calls[0]).toEqual(vi.mocked(sendCampaign).mock.calls[1]);
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
   expect(close).toHaveBeenCalledOnce();
+});
+
+it('opens a separate top-level form for each group and Escape closes only the form', async () => {
+  vi.mocked(loadEventDetails).mockResolvedValue(details(true, true));
+  const close = vi.fn();
+  document.body.style.overflow = 'auto';
+  const view = show(close);
+  await screen.findByText('Ваш ответ: Приду');
+  for (const label of ['Приду: 1', 'Не приду: 1', 'Не проголосовали: 2']) {
+    const trigger = screen.getByRole('button', { name: label });
+    await userEvent.click(trigger);
+    const form = screen.getByRole('dialog', { name: `Сообщение: ${label.replace(/: \d+$/, '')}` });
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(form).toContainElement(screen.getByLabelText('Текст сообщения'));
+    expect(document.body.style.overflow).toBe('hidden');
+    fireEvent(form, new Event('cancel', { bubbles: true, cancelable: true }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(close).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+  }
+  view.unmount();
+  expect(document.body.style.overflow).toBe('auto');
+  document.body.style.overflow = '';
+});
+
+it('confirms discarding a draft and restores scroll even when both dialogs unmount together', async () => {
+  vi.mocked(loadEventDetails).mockResolvedValue(details(true, true));
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const view = show();
+  await userEvent.click(await screen.findByRole('button', { name: 'Приду: 1' }));
+  await userEvent.type(screen.getByLabelText('Текст сообщения'), 'Черновик');
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(screen.getByLabelText('Текст сообщения')).toHaveValue('Черновик');
+  confirm.mockReturnValue(true);
+  await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+  expect(screen.queryByLabelText('Текст сообщения')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Не приду: 1' }));
+  expect(screen.getByLabelText('Текст сообщения')).toHaveValue('');
+  view.unmount();
+  expect(document.body.style.overflow).toBe('');
 });
 
 it('keeps editable message text after a definitive rejection', async () => {

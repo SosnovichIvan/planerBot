@@ -39,6 +39,12 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
 
   const data = state.kind === 'ready' ? state.data : null;
   const event = data?.event;
+  function closeCampaign() {
+    if (lock.current) return;
+    if (uncertain ? !window.confirm('Рассылка могла быть создана. Закрыть без проверки? Повторное создание может отправить сообщения ещё раз.')
+      : text.trim() && !window.confirm('Закрыть форму и потерять несохранённое сообщение?')) return;
+    setAudience(null); setText(''); setUncertain(false); submitted.current = null; setError('');
+  }
   return <Modal title={event?.data.title ?? 'Событие'} busy={busy} onClose={() => { if (!lock.current && (!uncertain || window.confirm('Рассылка могла быть создана. Закрыть без проверки? Повторное создание может отправить сообщения ещё раз.'))) onClose(); }}>
     {state.kind === 'loading' && <p className="mt-5" role="status">Загружаем событие…</p>}
     {state.kind === 'error' && <div className="mt-5" role="alert"><p>{state.message}</p><button className="secondary-button mt-3" onClick={() => { setState({ kind: 'loading' }); setAttempt((value) => value + 1); }}>Повторить загрузку</button></div>}
@@ -65,7 +71,9 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
           <button className="secondary-button" key={group} disabled={busy || uncertain} onClick={() => { setAudience(group); setCampaign(null); setNotice(''); }}>{labels[group]}: {data.counts![group]}</button> :
           <p className="rounded-xl border border-line p-3 text-sm" key={group}>{labels[group]}: {data.counts![group]}</p>)}</div>
       </section>}
-      {audience && event.can_manage && data.counts && <form className="mt-5 rounded-xl border border-line p-4" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
+      {audience && event.can_manage && data.counts && <Modal title={`Сообщение: ${labels[audience]}`} closeLabel="Закрыть форму отправки" busy={busy} onClose={closeCampaign}>
+        <p className="mt-4 break-words text-sm text-muted">{event.data.title} · {event.chat_title}</p>
+        <form className="mt-5" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
         if (!submitted.current && !window.confirm(`Отправить личное сообщение группе «${labels[audience]}»? Получат только участники календаря с разрешёнными сообщениями.`)) return;
         void act(async () => {
           submitted.current ??= { key: crypto.randomUUID(), audience, text: text.trim() };
@@ -76,11 +84,12 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
           submitted.current = null; setUncertain(false); setAudience(null); setText(''); setNotice('Рассылка поставлена в очередь. Это ещё не подтверждение доставки.');
         });
       }}>
-        <h3 className="font-semibold">Сообщение: {labels[audience]}</h3>
         <label className="form-label mt-3">Текст сообщения<textarea className="field" required maxLength={1500} value={text} disabled={busy || uncertain} onChange={(e) => setText(e.target.value)} /></label>
         <p className="mt-2 text-xs text-muted">К сообщению добавится ссылка на событие. Сменившие ответ или вышедшие из чата будут пропущены.</p>
         <button className="button mt-4" disabled={busy || !text.trim()}>{uncertain ? 'Повторить тот же запрос' : 'Отправить группе'}</button>
-      </form>}
+        <button className="secondary-button ml-2 mt-4" type="button" disabled={busy} onClick={closeCampaign}>Отмена</button>
+        {error && <p className="mt-4 text-sm" role="alert">{error}</p>}
+      </form></Modal>}
       {campaign && <section className="mt-5 text-sm" aria-label="Доставка рассылки">
         {Object.entries(campaign.statuses ?? {}).map(([status, count]) => <p key={status}>{deliveryLabels[status]}: {count}</p>)}
         <button className="secondary-button mt-3" disabled={busy} onClick={() => void act(async () => { setCampaign(await campaignStatus(raw, event, campaign.id)); })}>Проверить доставку</button>
@@ -95,7 +104,7 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
         {!data.personal_messages_enabled && <button className="secondary-button ml-2 mt-3" disabled={busy} onClick={() => void act(async () => { setState({ kind: 'ready', data: await loadEventDetails(raw, chatId, eventId) }); })}>Обновить разрешение</button>}
       </section>
     </>}
-    {error && <p className="mt-4 text-sm" role="alert">{error}</p>}
+    {!audience && error && <p className="mt-4 text-sm" role="alert">{error}</p>}
     {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
   </Modal>;
 }
