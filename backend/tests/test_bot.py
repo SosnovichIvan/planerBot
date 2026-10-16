@@ -4,7 +4,7 @@ import pytest
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import GetChatMember
-from aiogram.types import ChatMemberMember, Update, User
+from aiogram.types import ChatMemberMember, ReplyKeyboardMarkup, Update, User
 from conftest import TOKEN
 from planerbot.access import AccessUnavailable, Membership
 from planerbot.bot import create_dispatcher
@@ -98,6 +98,29 @@ async def test_calendar_link(chat_type, context):
     )
     markup = bot.session.call_args[0][1].reply_markup
     assert markup.inline_keyboard[0][0].url == f"https://t.me/planer_test_bot?startapp={context}"
+
+
+@pytest.mark.parametrize("chat_type", ["group", "supergroup"])
+async def test_calendar_installs_persistent_keyboard_and_handles_its_text(chat_type):
+    bot = bot_stub()
+    dispatcher = create_dispatcher(store_stub(), AsyncMock())
+    await dispatcher.feed_update(bot, update("/calendar", chat_type=chat_type))
+    keyboard = bot.session.call_args_list[0].args[1].reply_markup
+    assert isinstance(keyboard, ReplyKeyboardMarkup)
+    assert keyboard.keyboard[0][0].text == "Календарь"
+    assert keyboard.is_persistent and keyboard.resize_keyboard and not keyboard.one_time_keyboard
+    bot.session.reset_mock()
+    payload = update("Календарь", chat_type=chat_type).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    payload["message"].pop("entities")
+    await dispatcher.feed_update(bot, Update.model_validate(payload))
+    assert len(bot.session.call_args_list) == 1
+    assert (
+        bot.session.call_args.args[1]
+        .reply_markup.inline_keyboard[0][0]
+        .url.endswith("startapp=chat_-1")
+    )
 
 
 async def test_gateway_success_and_failure():

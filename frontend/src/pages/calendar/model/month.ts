@@ -21,9 +21,13 @@ export function eventDayCounts(events: CalendarEvent[], month: Date): Record<num
   for (const day of monthDays(month)) {
     if (day === null) continue;
     const value = prefix + String(day).padStart(2, '0');
-    result[day] = events.filter((event) => event.status !== 'cancelled' && event.data.start_date <= value &&
-      (event.data.end_date ?? event.data.start_date) >= value &&
-      !(event.data.end_time === '00:00' && event.data.end_date === value)).length;
+    result[day] = eventsOnDate(events, value).length;
   }
   return result;
+}
+
+export function eventsOnDate(events: CalendarEvent[], value: string): CalendarEvent[] {
+  return events.filter((event) => event.status !== 'cancelled' && event.data.start_date <= value &&
+    (event.data.end_date ?? event.data.start_date) >= value &&
+    !(event.data.end_time === '00:00' && event.data.end_date === value));
 }

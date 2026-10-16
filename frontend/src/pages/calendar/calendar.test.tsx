@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { ApiFailure, loadChats, loadEvents } from '../../shared/api';
 import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
+import { event as calendarEvent } from './ui/fixtures.test-data';
 
 vi.mock('../../shared/api', async (original) => ({
   ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }),
@@ -17,7 +18,33 @@ const chats = [
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.mocked(loadChats).mockReset();
+  vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
+});
+
+it('opens only events of the clicked day and navigates to their Telegram message', async () => {
+  const month = new Date();
+  const prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+  const event = { ...calendarEvent, data: { ...calendarEvent.data, start_date: `${prefix}-20`, end_date: `${prefix}-20` } };
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  vi.mocked(loadEvents).mockResolvedValue({ events: [event, { ...event, id: 'another', data: { ...event.data, title: 'Другой день', start_date: `${prefix}-21`, end_date: `${prefix}-21` } }], has_more: false });
+  const open = vi.spyOn(telegram, 'openTelegramMessage').mockReturnValue(true);
+  render(<CalendarPage />);
+  await userEvent.click(await screen.findByRole('button', { name: '20, событий: 1' }));
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByRole('heading', { name: event.data.title })).toBeVisible();
+  expect(within(dialog).queryByText('Другой день')).not.toBeInTheDocument();
+  const link = within(dialog).getByRole('link');
+  expect(link).toHaveAttribute('href', event.message_url);
+  await userEvent.click(link);
+  expect(open).toHaveBeenCalledWith(event.message_url);
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Закрыть окно' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  let finish!: (data: { events: typeof event[]; has_more: boolean }) => void;
+  vi.mocked(loadEvents).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  expect(screen.queryByRole('button', { name: '20, событий: 1' })).not.toBeInTheDocument();
+  await act(() => finish({ events: [], has_more: false }));
 });
 
 it('explains the Telegram entry point and does not request data outside Telegram', () => {

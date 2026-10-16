@@ -10,10 +10,11 @@ from planerbot.event_contracts import Conflict, EventInput, EventsView, EventVie
 from planerbot.models import Chat, Event, Publication, Topic
 
 
-def message_link(chat_id: int, message_id: int | None) -> str | None:
+def message_link(chat_id: int, message_id: int | None, topic_id: int = 1) -> str | None:
     chat = str(chat_id)
+    topic = f"{topic_id}/" if topic_id != 1 else ""
     return (
-        f"https://t.me/c/{chat[4:]}/{message_id}"
+        f"https://t.me/c/{chat[4:]}/{topic}{message_id}"
         if chat.startswith("-100") and message_id
         else None
     )
@@ -73,7 +74,9 @@ class EventRepository:
             source=event.source,
             source_message_id=event.source_message_id,
             publication_status=publication,
-            message_url=message_link(event.chat_id, published_id or event.source_message_id),
+            message_url=message_link(
+                event.chat_id, published_id or event.source_message_id, event.topic_id
+            ),
         )
 
     async def create(
@@ -254,7 +257,9 @@ class EventRepository:
                     source=e.source,
                     source_message_id=e.source_message_id,
                     publication_status=publication,
-                    message_url=message_link(e.chat_id, published_id or e.source_message_id),
+                    message_url=message_link(
+                        e.chat_id, published_id or e.source_message_id, e.topic_id
+                    ),
                     can_manage=e.chat_id in admin_ids,
                 )
                 for e, chat_title, topic_title, publication, published_id in joined

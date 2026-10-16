@@ -23,6 +23,14 @@ class EventService:
         if not any(topic.thread_id == topic_id and topic.enabled for topic in chat.topics):
             raise InvalidEvent("Выберите включённую тему этого чата")
 
+    @staticmethod
+    def located(data: EventInput) -> EventInput:
+        try:
+            data.require_location()
+        except ValueError as exc:
+            raise InvalidEvent(str(exc)) from exc
+        return data.model_copy(update={"place_pending": False})
+
     async def settings(self, user_id: int, chat_id: int, data: ChatSettingsInput) -> None:
         await self.access.authorize(user_id, chat_id, manage=True)
         await self.chats.configure(chat_id, data)
@@ -30,6 +38,7 @@ class EventService:
     async def create(self, user_id: int, chat_id: int, data: EventInput, key: UUID) -> EventView:
         target = await self.access.authorize(user_id, chat_id, manage=True)
         self.topic(target.chat, data.topic_id)
+        data = self.located(data)
         event_id = uuid5(NAMESPACE_URL, f"form:{chat_id}:{user_id}:{key}")
         result = await self.events.create(chat_id, user_id, data, target.chat.timezone, event_id)
         return result.model_copy(update={"can_manage": True})
@@ -47,6 +56,7 @@ class EventService:
         target = await self.access.authorize(user_id, chat_id, manage=True)
         if data is not None:
             self.topic(target.chat, data.topic_id)
+            data = self.located(data)
         result = await self.events.change(
             chat_id, event_id, user_id, version, data=data, action=action
         )
@@ -101,7 +111,7 @@ class EventService:
         self.topic(chat, topic_id)
         from planerbot.parsing import parse_event
 
-        data = parse_event(text, topic_id)
+        data = self.located(parse_event(text, topic_id))
         status = "pending" if not command and chat.confirmation_required else "active"
         key = uuid5(NAMESPACE_URL, f"telegram:{chat_id}:{message_id}")
         return await self.events.create(

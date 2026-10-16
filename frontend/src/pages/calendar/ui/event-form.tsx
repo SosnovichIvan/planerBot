@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Modal } from '../../../shared/ui/modal';
 import { ApiFailure, createEvent, editEvent, errorText } from '../../../shared/api';
 import type { CalendarEvent, Chat, EventDraft } from '../../../shared/api';
 
@@ -21,18 +22,6 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
   const key = useRef(crypto.randomUUID());
   const submitted = useRef<EventDraft | null>(null);
   const data = event?.data;
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const titleId = useId();
-
-  useEffect(() => {
-    const dialog = dialogRef.current!;
-    const overflow = document.body.style.overflow;
-    dialog.showModal();
-    document.body.style.overflow = 'hidden';
-    headingRef.current?.focus();
-    return () => { dialog.close(); document.body.style.overflow = overflow; };
-  }, []);
 
   function close() {
     if (lock.current) return;
@@ -52,9 +41,13 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
       end_time: value('end_time') || null, description: value('description'),
       meeting_format: value('meeting_format') as EventDraft['meeting_format'],
       place: value('place'), address: value('address'), map_url: value('map_url'),
-      online_url: value('online_url'), place_pending: fields.has('place_pending'),
+      online_url: value('online_url'), place_pending: false,
       tags: value('tags').split(/\s+/).filter(Boolean),
     };
+    if (!draft.place && !draft.address && !draft.map_url && !draft.online_url) {
+      setError('Укажите место встречи или ссылку подключения');
+      return;
+    }
     submitted.current = draft;
     lock.current = true; setBusy(true); setError('');
     try {
@@ -65,12 +58,9 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
     } finally { lock.current = false; setBusy(false); }
   }
 
-  return <dialog ref={dialogRef} className="event-dialog" aria-labelledby={titleId} onCancel={(e) => { e.preventDefault(); close(); }}>
-    <div className="flex items-start justify-between gap-3">
-      <h2 ref={headingRef} tabIndex={-1} id={titleId} className="text-xl font-semibold">{event ? 'Изменить событие' : 'Создать событие'}</h2>
-      <button className="secondary-button shrink-0" type="button" disabled={busy} onClick={close} aria-label="Закрыть форму">Закрыть</button>
-    </div>
+  return <Modal title={event ? 'Изменить событие' : 'Создать событие'} onClose={close} busy={busy} closeLabel="Закрыть форму">
     <p className="mt-2 text-sm text-muted">Время в часовом поясе {event?.timezone ?? chat.timezone ?? 'UTC'}. После сохранения карточка будет отправлена в выбранный чат и тему.</p>
+    <p className="mt-2 text-sm text-muted">Укажите место/адрес или ссылку подключения. Заполнять оба варианта не обязательно.</p>
     {!topics.length && <p className="mt-4 text-sm" role="status">Нет доступных тем для публикации. Включите тему в настройках чата и откройте форму заново.</p>}
     {initialTopicId && !topicId && topics.length > 0 && <p className="mt-4 text-sm" role="status">Исходная тема недоступна. Выберите другую включённую тему.</p>}
     <form className="mt-5 space-y-4" onChange={() => { dirty.current = true; }} onSubmit={(e) => { e.preventDefault(); void submit(e.currentTarget); }}>
@@ -98,7 +88,6 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
         <label className="form-label">Адрес<input className="field" name="address" maxLength={300} defaultValue={data?.address} /></label>
         <label className="form-label">Ссылка на карту<input className="field" type="url" name="map_url" maxLength={400} defaultValue={data?.map_url} /></label>
         <label className="form-label">Ссылка подключения<input className="field" type="url" name="online_url" maxLength={400} defaultValue={data?.online_url} /></label>
-        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name="place_pending" defaultChecked={data?.place_pending ?? false} />Место уточняется</label>
         <label className="form-label">Описание<textarea className="field min-h-24" name="description" maxLength={1200} defaultValue={data?.description} /></label>
         <label className="form-label">Теги через пробел<input className="field" name="tags" defaultValue={data?.tags?.join(' ')} placeholder="#встреча #команда" /></label>
       </fieldset>
@@ -108,5 +97,5 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
         <button className="secondary-button" type="button" disabled={busy} onClick={close}>Отмена</button>
       </div>
     </form>
-  </dialog>;
+  </Modal>;
 }

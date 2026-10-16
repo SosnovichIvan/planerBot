@@ -96,7 +96,7 @@ it('creates an event and refreshes its list with a navigation callback', async (
   await userEvent.click(screen.getByRole('button', { name: 'Создать событие' }));
   await userEvent.type(screen.getByLabelText('Название'), 'Новая встреча');
   fireEvent.change(screen.getByLabelText('Дата начала'), { target: { value: '2026-10-20' } });
-  await userEvent.click(screen.getByLabelText('Место уточняется'));
+  await userEvent.type(screen.getByLabelText('Место встречи'), 'Кафе');
   await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
   await waitFor(() => expect(created).toHaveBeenCalledWith(event));
   expect(await screen.findByText(/Событие сохранено на/)).toBeVisible();

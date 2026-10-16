@@ -5,6 +5,15 @@ interface TelegramApp {
   expand(): void;
   onEvent(event: 'themeChanged', callback: () => void): void;
   offEvent(event: 'themeChanged', callback: () => void): void;
+  openTelegramLink?(url: string): void;
+}
+
+export function openTelegramMessage(url: string): boolean {
+  if (!/^https:\/\/t\.me\/c\/\d+\/(?:\d+\/)?\d+$/.test(url)) return false;
+  const app = window.Telegram?.WebApp;
+  if (!app?.openTelegramLink) return false;
+  try { app.openTelegramLink(url); return true; }
+  catch { return false; } // Older clients can expose the method without supporting it.
 }
 
 declare global {
