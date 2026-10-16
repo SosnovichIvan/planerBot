@@ -38,7 +38,15 @@ class ChatRepository:
         async with self.sessions.begin() as session:
             await session.execute(update(Chat).where(Chat.id == chat_id).values(active=active))
 
-    async def register(self, chat_id: int, title: str, thread_id: int, topic_title: str) -> None:
+    async def register(
+        self,
+        chat_id: int,
+        title: str,
+        thread_id: int,
+        topic_title: str,
+        *,
+        overwrite_title: bool = True,
+    ) -> None:
         async with self.sessions.begin() as session:
             await session.execute(
                 insert(Chat)
@@ -47,12 +55,13 @@ class ChatRepository:
                     index_elements=[Chat.id], set_={"title": title, "active": True}
                 )
             )
+            topic = insert(Topic).values(chat_id=chat_id, thread_id=thread_id, title=topic_title)
             await session.execute(
-                insert(Topic)
-                .values(chat_id=chat_id, thread_id=thread_id, title=topic_title)
-                .on_conflict_do_update(
+                topic.on_conflict_do_update(
                     index_elements=[Topic.chat_id, Topic.thread_id], set_={"title": topic_title}
                 )
+                if overwrite_title
+                else topic.on_conflict_do_nothing()
             )
 
     async def candidates(self, after: int | None) -> list[ChatRecord]:

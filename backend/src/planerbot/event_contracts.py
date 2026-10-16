@@ -26,7 +26,7 @@ class ChatSettingsInput(BaseModel):
     version: int = Field(ge=1)
     timezone: str = Field(min_length=1, max_length=64)
     event_tag: str = Field(pattern=f"^{TAG}$")
-    creation_policy: Literal["admins", "members"] = "admins"
+    creation_policy: Literal["admins"] = "admins"
     confirmation_required: bool = False
     enabled_topic_ids: list[int] = Field(max_length=1000)
 

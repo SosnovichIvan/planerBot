@@ -2,7 +2,7 @@ import re
 from datetime import date, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from planerbot.access import AccessDenied, ChatAccess
+from planerbot.access import ChatAccess
 from planerbot.event_contracts import (
     ChatSettingsInput,
     EventInput,
@@ -97,18 +97,12 @@ class EventService:
             tag.casefold() for tag in re.findall(r"(?<!\w)#[\w]+", text)
         ]:
             return None
-        target = await self.access.authorize(user_id, chat_id, manage=command)
-        if not target.can_manage and chat.creation_policy != "members":
-            raise AccessDenied
+        await self.access.authorize(user_id, chat_id, manage=True)
         self.topic(chat, topic_id)
         from planerbot.parsing import parse_event
 
         data = parse_event(text, topic_id)
-        status = (
-            "pending"
-            if not command and (chat.confirmation_required or not target.can_manage)
-            else "active"
-        )
+        status = "pending" if not command and chat.confirmation_required else "active"
         key = uuid5(NAMESPACE_URL, f"telegram:{chat_id}:{message_id}")
         return await self.events.create(
             chat_id,

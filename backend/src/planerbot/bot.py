@@ -1,12 +1,18 @@
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command
 from aiogram.types import (
+    BotCommand,
+    BotCommandScopeChat,
+    BotCommandScopeChatAdministrators,
     ChatMemberUpdated,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    TelegramObject,
     Update,
 )
 
@@ -27,14 +33,90 @@ def create_dispatcher(
 ) -> Dispatcher:
     router = Router()
 
+    async def calendar_markup(bot: Bot, chat_id: int) -> InlineKeyboardMarkup:
+        me = await bot.get_me()
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Открыть календарь",
+                        url=f"https://t.me/{me.username}?startapp=chat_{chat_id}",
+                    )
+                ]
+            ]
+        )
+
+    async def discover(
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        message: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        if isinstance(message, Message) and message.chat.type in {"group", "supergroup"}:
+            chat = await store.get(message.chat.id)
+            if chat is not None:
+                thread = (message.message_thread_id or 1) if message.chat.is_forum else 1
+                created, edited = message.forum_topic_created, message.forum_topic_edited
+                name = created.name if created else edited.name if edited else None
+                if name or not any(t.thread_id == thread for t in chat.topics):
+                    await store.register(
+                        message.chat.id,
+                        message.chat.title or "Чат",
+                        thread,
+                        name
+                        or (
+                            "Общая"
+                            if message.chat.is_forum and thread == 1
+                            else f"Тема {thread}"
+                            if message.chat.is_forum
+                            else "Чат"
+                        ),
+                        overwrite_title=bool(name),
+                    )
+        return await handler(message, data)
+
+    router.message.outer_middleware(discover)
+    router.edited_message.outer_middleware(discover)
+
     @router.my_chat_member()
-    async def bot_membership(event: ChatMemberUpdated) -> None:
-        await store.set_active(event.chat.id, Membership(event.new_chat_member.status).admin)
+    async def bot_membership(event: ChatMemberUpdated, bot: Bot) -> None:
+        if event.chat.type not in {"group", "supergroup"}:
+            return
+        active = Membership(event.new_chat_member.status).admin
+        if not active:
+            await store.set_active(event.chat.id, False)
+            if event.new_chat_member.status == "member":
+                await bot.send_message(
+                    event.chat.id, "Назначьте бота администратором, чтобы подключить календарь."
+                )
+            return
+        await store.register(
+            event.chat.id,
+            event.chat.title or "Чат",
+            1,
+            "Общая" if event.chat.is_forum else "Чат",
+            overwrite_title=False,
+        )
+        commands = [BotCommand(command="calendar", description="Открыть календарь")]
+        await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=event.chat.id))
+        await bot.set_my_commands(
+            commands
+            + [
+                BotCommand(command="event", description="Создать событие"),
+                BotCommand(command="settings", description="Настройки календаря"),
+            ],
+            scope=BotCommandScopeChatAdministrators(chat_id=event.chat.id),
+        )
+        if not Membership(event.old_chat_member.status).admin:
+            await bot.send_message(
+                event.chat.id,
+                "Календарь подключён.",
+                reply_markup=await calendar_markup(bot, event.chat.id),
+            )
 
     @router.message(Command("setup"))
     async def setup(message: Message, bot: Bot) -> None:
-        if message.chat.type != "supergroup" or not message.chat.is_forum:
-            await message.answer("Выполните /setup в теме супергруппы с включёнными темами.")
+        if message.chat.type not in {"group", "supergroup"}:
+            await message.answer("Выполните /setup в группе.")
             return
         if message.from_user is None or message.sender_chat is not None:
             await message.answer("Отправьте команду от личного аккаунта администратора.")
@@ -48,10 +130,16 @@ def create_dispatcher(
         if not member.admin or not bot_member.admin:
             await message.answer("Для настройки нужны права администратора у вас и у бота.")
             return
-        thread_id = message.message_thread_id or 1
+        thread_id = (message.message_thread_id or 1) if message.chat.is_forum else 1
         # Existing topic titles are not enumerated by Bot API. Register explicitly in the topic.
         name = (message.text or "").partition(" ")[2].strip()
-        topic_title = name[:256] or ("Общая" if thread_id == 1 else f"Тема {thread_id}")
+        topic_title = name[:256] or (
+            "Чат"
+            if not message.chat.is_forum
+            else "Общая"
+            if thread_id == 1
+            else f"Тема {thread_id}"
+        )
         await store.register(message.chat.id, message.chat.title or "Чат", thread_id, topic_title)
         await message.answer(
             "Чат и тема подключены. Проверьте часовой пояс и темы: /settings. Календарь: /calendar"
@@ -60,7 +148,11 @@ def create_dispatcher(
     @router.message(Command("calendar", "start", "settings"))
     async def calendar(message: Message, bot: Bot) -> None:
         me = await bot.get_me()
-        context = f"chat_{message.chat.id}" if message.chat.type == "supergroup" else "calendar"
+        context = (
+            f"chat_{message.chat.id}"
+            if message.chat.type in {"group", "supergroup"}
+            else "calendar"
+        )
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
@@ -80,7 +172,7 @@ def create_dispatcher(
 
         async def import_event(message: Message, event_update: Update, *, command: bool) -> None:
             if (
-                message.chat.type != "supergroup"
+                message.chat.type not in {"group", "supergroup"}
                 or message.from_user is None
                 or message.from_user.is_bot
                 or message.sender_chat is not None
@@ -100,7 +192,7 @@ def create_dispatcher(
                 result = await events.import_message(
                     message.from_user.id,
                     message.chat.id,
-                    message.message_thread_id or 1,
+                    (message.message_thread_id or 1) if message.chat.is_forum else 1,
                     content,
                     message.message_id,
                     source_date,

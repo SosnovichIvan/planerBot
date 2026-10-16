@@ -6,8 +6,8 @@ import pytest
 from event_helpers import STAMP, A, B, draft, services
 from planerbot.access import AccessDenied
 from planerbot.event_contracts import ChatSettingsInput, Conflict, InvalidEvent, MissingEvent
-from planerbot.models import Event, Publication
-from sqlalchemy import select
+from planerbot.models import Chat, Event, Publication
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 
@@ -91,8 +91,8 @@ async def test_import_pending_edit_order_and_isolation(engine):
     assert await service.import_message(42, -999, 10, text, 5, STAMP, 1) is None
     with pytest.raises(AccessDenied):
         await service.import_message(43, A, 10, text, 5, STAMP, 1)
-    await service.settings(42, A, settings(creation_policy="members"))
-    pending = await service.import_message(43, A, 10, text, 5, STAMP, 2)
+    await service.settings(42, A, settings(confirmation_required=True))
+    pending = await service.import_message(42, A, 10, text, 5, STAMP, 2)
     assert pending.status == "pending" and pending.publication_status is None
     assert not (
         await service.list(43, date(2026, 10, 1), date(2026, 11, 1), None, None, None)
@@ -104,13 +104,13 @@ async def test_import_pending_edit_order_and_isolation(engine):
         == 1
     )
     edited = await service.import_message(
-        43, A, 10, text.replace("Кафе", "Парк"), 5, STAMP + timedelta(seconds=1), 3
+        42, A, 10, text.replace("Кафе", "Парк"), 5, STAMP + timedelta(seconds=1), 3
     )
     assert edited.id == pending.id and edited.version == 3 and edited.status == "pending"
-    old = await service.import_message(43, A, 10, text, 5, STAMP, 2)
+    old = await service.import_message(42, A, 10, text, 5, STAMP, 2)
     assert old.version == 3 and old.data.place == "Парк"
     await service.change(42, A, pending.id, 3, action="cancel")
-    old = await service.import_message(43, A, 10, text, 5, STAMP + timedelta(seconds=2), 4)
+    old = await service.import_message(42, A, 10, text, 5, STAMP + timedelta(seconds=2), 4)
     assert old.status == "cancelled" and old.version == 4
     with pytest.raises(AccessDenied):
         await service.list(43, date(2026, 10, 1), date(2026, 11, 1), B, None, None)
@@ -118,6 +118,19 @@ async def test_import_pending_edit_order_and_isolation(engine):
     assert not (
         await service.list(43, date(2026, 10, 1), date(2026, 11, 1), None, None, None)
     ).events
+
+
+@pytest.mark.parametrize("command", [False, True])
+async def test_legacy_member_policy_cannot_allow_creation(engine, command):
+    service, _, _ = await services(engine)
+    async with engine.begin() as connection:
+        await connection.execute(update(Chat).where(Chat.id == A).values(creation_policy="members"))
+    with pytest.raises(AccessDenied):
+        await service.import_message(
+            43, A, 10, "#событие\nНазвание: A\nДата: 2026-10-20", 7, STAMP, 1, command=command
+        )
+    async with service.events.sessions() as session:
+        assert list(await session.scalars(select(Event))) == []
 
 
 async def test_filters_disable_topics_and_bot_command(engine):
