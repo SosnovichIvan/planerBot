@@ -242,9 +242,9 @@ export interface components {
             /**
              * Creation Policy
              * @default admins
-             * @enum {string}
+             * @constant
              */
-            creation_policy: "admins" | "members";
+            creation_policy: "admins";
             /**
              * Confirmation Required
              * @default false

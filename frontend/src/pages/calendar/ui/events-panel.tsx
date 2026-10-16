@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { errorText, eventAction, loadEvents } from '../../../shared/api';
 import type { CalendarEvent, Chat } from '../../../shared/api';
 import { EventForm } from './event-form';
@@ -12,19 +13,16 @@ const publicationLabels: Record<string, string> = {
   failed: 'Не удалось опубликовать', unknown: 'Результат отправки неизвестен',
 };
 
-export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[]) => void }) {
+export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoaded, toolbarTarget }: { chats: Chat[]; raw: string; month: Date; selectedChat: string; onCreated?: (event: CalendarEvent) => void; onLoaded?: (events: CalendarEvent[]) => void; toolbarTarget?: HTMLElement | null }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [editor, setEditor] = useState<CalendarEvent | 'new' | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [topic, setTopic] = useState('all');
-  const [tag, setTag] = useState('');
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const { start, end } = monthRange(month);
-  const queryKey = `${start}:${selectedChat}:${topic}:${tag}:${attempt}`;
+  const queryKey = `${start}:${selectedChat}:${attempt}`;
   const [loadedKey, setLoadedKey] = useState('');
-  const selected = chats.find((chat) => chat.id === selectedChat);
 
   useEffect(() => {
     if (state.kind === 'ready' && state.events.some((event) => ['pending', 'sending'].includes(event.publication_status ?? ''))) {
@@ -38,14 +36,13 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
     onLoaded?.([]);
     loadEvents(raw, controller.signal, { start, end,
       chat_id: selectedChat === 'all' ? undefined : Number(selectedChat),
-      topic_id: topic === 'all' ? undefined : Number(topic), tag: tag || undefined,
     }).then((data) => {
       if (!controller.signal.aborted) { setState({ kind: 'ready', events: data.events, more: data.has_more }); setLoadedKey(queryKey); onLoaded?.(data.events); }
     }, (error: unknown) => {
       if (!controller.signal.aborted) { setState({ kind: 'error', error: errorText(error) }); setLoadedKey(queryKey); }
     });
     return () => controller.abort();
-  }, [raw, start, end, selectedChat, topic, tag, queryKey, onLoaded]);
+  }, [raw, start, end, selectedChat, queryKey, onLoaded]);
 
   const current = loadedKey === queryKey ? state : { kind: 'loading' as const };
   const refresh = () => setAttempt((value) => value + 1);
@@ -60,23 +57,21 @@ export function EventsPanel({ chats, raw, month, selectedChat, onCreated, onLoad
     finally { setBusy(false); }
   }
 
-  return <section className="mt-6" aria-labelledby="events-title">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <h2 id="events-title" className="text-xl font-semibold">События месяца</h2>
-      <button className="secondary-button" onClick={refresh}>Обновить события</button>
+  const toolbar = <div className="flex flex-wrap items-center gap-2" aria-label="Действия календаря">
       {chats.some((chat) => chat.can_manage) && <button className="button" onClick={() => { setEditor('new'); setNotice(''); }}>Создать событие</button>}
-    </div>
-    <div className="mb-5 grid gap-3 sm:grid-cols-2">
-      {selected && <label className="form-label">Тема событий<select className="field" value={topic} onChange={(e) => setTopic(e.target.value)}><option value="all">Все темы</option>{selected.topics.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}
-      <label className="form-label">Фильтр по тегу<input className="field" value={tag} maxLength={33} placeholder="#встреча" onChange={(e) => setTag(e.target.value)} /></label>
-    </div>
+      <button className="secondary-button" onClick={refresh}>Обновить события</button>
+    </div>;
+
+  return <section className="mt-6" aria-labelledby="events-title">
+    {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
+    <h2 id="events-title" className="mb-5 text-xl font-semibold">События месяца</h2>
     {notice && <p className="mb-4 text-sm" role="status">{notice}</p>}
     {actionError && <p className="mb-4 text-sm" role="alert">{actionError}</p>}
     {editor && <EventForm key={editor === 'new' ? 'new' : editor.id} chats={chats} raw={raw} initialChatId={selectedChat} event={editor === 'new' ? undefined : editor}
       onClose={() => setEditor(null)} onSaved={(saved) => { setEditor(null); setNotice(`Событие сохранено на ${saved.data.start_date}. Статус публикации указан в карточке.`); refresh(); onCreated?.(saved); }} />}
     {current.kind === 'loading' ? <p role="status" className="panel mt-5">Загружаем события…</p> : current.kind === 'error' ? <div className="panel mt-5" role="alert"><p>{current.error}</p></div> : <>
-      {current.events.length === 0 && <p className="panel mt-5 text-sm text-muted">В выбранном периоде и фильтрах событий нет.</p>}
-      {current.more && <p role="status" className="my-3 text-sm">Показаны первые 200 событий. Выберите чат, тему или тег, чтобы сузить список.</p>}
+      {current.events.length === 0 && <p className="panel mt-5 text-sm text-muted">В выбранном периоде событий нет.</p>}
+      {current.more && <p role="status" className="my-3 text-sm">Показаны первые 200 событий. Выберите конкретный чат, чтобы сузить список.</p>}
       <ul className="mt-5 space-y-4">{current.events.map((event) => <li className="panel" key={event.id}>
         <p className="mb-2 text-xs text-muted">{event.chat_title} · {event.topic_title}</p>
         <h3 className="break-words text-lg font-semibold">{event.data.title}</h3>

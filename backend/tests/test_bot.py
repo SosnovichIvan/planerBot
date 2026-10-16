@@ -40,17 +40,22 @@ def bot_stub():
     return bot
 
 
+def store_stub():
+    store = AsyncMock()
+    store.get.return_value = None
+    return store
+
+
 @pytest.mark.parametrize(
     "kwargs,reply",
     [
-        ({"chat_type": "private"}, "супергруппы"),
-        ({"forum": False}, "супергруппы"),
+        ({"chat_type": "private"}, "группе"),
         ({"sender": False}, "личного аккаунта"),
         ({"anonymous": True}, "личного аккаунта"),
     ],
 )
 async def test_setup_invalid_context(kwargs, reply):
-    store, gateway, bot = AsyncMock(), AsyncMock(), bot_stub()
+    store, gateway, bot = store_stub(), AsyncMock(), bot_stub()
     await create_dispatcher(store, gateway).feed_update(bot, update(**kwargs))
     assert reply in bot.session.call_args[0][1].text
     store.register.assert_not_awaited()
@@ -65,7 +70,7 @@ async def test_setup_invalid_context(kwargs, reply):
     ],
 )
 async def test_setup_authorization(memberships, expected):
-    store, gateway, bot = AsyncMock(), AsyncMock(), bot_stub()
+    store, gateway, bot = store_stub(), AsyncMock(), bot_stub()
     gateway.membership.side_effect = memberships
     await create_dispatcher(store, gateway).feed_update(bot, update())
     assert expected in bot.session.call_args[0][1].text
@@ -77,13 +82,15 @@ async def test_setup_authorization(memberships, expected):
     [("/setup Встречи", 10, "Встречи"), ("/setup", 10, "Тема 10"), ("/setup", None, "Общая")],
 )
 async def test_register_topic(command, thread, name):
-    store, gateway, bot = AsyncMock(), AsyncMock(), bot_stub()
+    store, gateway, bot = store_stub(), AsyncMock(), bot_stub()
     gateway.membership.return_value = Membership("administrator")
     await create_dispatcher(store, gateway).feed_update(bot, update(command, thread=thread))
     store.register.assert_awaited_once_with(-1, "А", thread or 1, name)
 
 
-@pytest.mark.parametrize("chat_type,context", [("supergroup", "chat_-1"), ("private", "calendar")])
+@pytest.mark.parametrize(
+    "chat_type,context", [("supergroup", "chat_-1"), ("group", "chat_-1"), ("private", "calendar")]
+)
 async def test_calendar_link(chat_type, context):
     bot = bot_stub()
     await create_dispatcher(AsyncMock(), AsyncMock()).feed_update(

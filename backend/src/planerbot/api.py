@@ -183,7 +183,7 @@ def create_app(
                     ],
                     timezone=item.chat.timezone,
                     event_tag=item.chat.event_tag,
-                    creation_policy=item.chat.creation_policy,
+                    creation_policy="admins",
                     confirmation_required=item.chat.confirmation_required,
                     settings_version=item.chat.settings_version,
                 )

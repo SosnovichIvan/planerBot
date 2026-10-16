@@ -18,15 +18,15 @@ function panel(selectedChat = 'all', items = chats) {
   return <EventsPanel chats={items} raw="signed" month={new Date(2026, 9, 1)} selectedChat={selectedChat} />;
 }
 
-it('renders event details and requests topic/tag filters without sharing an old response', async () => {
+it('renders event details without topic/tag filters', async () => {
   render(panel(chats[0].id));
   expect(await screen.findByRole('heading', { name: event.data.title })).toBeVisible();
   expect(screen.getByText('Кафе, Москва')).toBeVisible();
   expect(screen.getByRole('link', { name: 'Открыть карту' })).toHaveAttribute('href', event.data.map_url);
   expect(screen.getByRole('link', { name: 'Подключиться онлайн' })).toHaveAttribute('href', event.data.online_url);
-  await userEvent.selectOptions(screen.getByLabelText('Тема событий'), '10');
-  await userEvent.type(screen.getByLabelText('Фильтр по тегу'), '#команда');
-  await waitFor(() => expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: -100100, topic_id: 10, tag: '#команда' })));
+  expect(screen.queryByLabelText('Тема событий')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Фильтр по тегу')).not.toBeInTheDocument();
+  expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: -100100 }));
   await userEvent.click(screen.getByRole('button', { name: 'Изменить' }));
   expect(screen.getByRole('heading', { name: 'Изменить событие' })).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));

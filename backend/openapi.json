@@ -779,10 +779,7 @@
           },
           "creation_policy": {
             "type": "string",
-            "enum": [
-              "admins",
-              "members"
-            ],
+            "const": "admins",
             "title": "Creation Policy",
             "default": "admins"
           },
