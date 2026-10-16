@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { connectTelegram, creationTarget, eventTarget, initData, openTelegramMessage, requestPersonalMessages } from './index';
 
-afterEach(() => { delete window.Telegram; delete document.documentElement.dataset.theme; });
+afterEach(() => { delete window.Telegram; delete document.documentElement.dataset.theme; localStorage.clear(); });
 
 it('uses Telegram navigation only for supported message links and falls back without SDK', () => {
   const url = 'https://t.me/c/100/10/5';
@@ -41,7 +41,7 @@ it('does not create identity outside Telegram', () => {
   connectTelegram()();
 });
 
-it('initializes Telegram and follows theme changes with cleanup', () => {
+it('initializes Telegram but keeps the product dark by default with cleanup', () => {
   const app = {
     initData: 'signed', colorScheme: 'light' as 'light' | 'dark', ready: vi.fn(), expand: vi.fn(),
     onEvent: vi.fn(), offEvent: vi.fn(),
@@ -51,10 +51,13 @@ it('initializes Telegram and follows theme changes with cleanup', () => {
   const cleanup = connectTelegram();
   expect(app.ready).toHaveBeenCalledOnce();
   expect(app.expand).toHaveBeenCalledOnce();
-  expect(document.documentElement.dataset.theme).toBe('light');
+  expect(document.documentElement.dataset.theme).toBe('dark');
   app.colorScheme = 'dark';
   app.onEvent.mock.calls[0][1]();
   expect(document.documentElement.dataset.theme).toBe('dark');
+  localStorage.setItem('planerbot-theme', 'light');
+  app.onEvent.mock.calls[0][1]();
+  expect(document.documentElement.dataset.theme).toBe('light');
   cleanup();
   expect(app.offEvent).toHaveBeenCalledWith('themeChanged', app.onEvent.mock.calls[0][1]);
 });

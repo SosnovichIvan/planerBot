@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { ApiFailure, createEvent, editEvent } from '../../../shared/api';
 import { EventForm } from './event-form';
 import { chats, event } from './fixtures.test-data';
+import { selectDate, selectOption } from '../../../shared/ui/controls.test-support';
 
 vi.mock('../../../shared/api', async (original) => ({
   ...await original<typeof import('../../../shared/api')>(), createEvent: vi.fn(), editEvent: vi.fn(),
@@ -12,7 +13,7 @@ beforeEach(() => { vi.mocked(createEvent).mockReset(); vi.mocked(editEvent).mock
 
 async function fill() {
   await userEvent.type(screen.getByLabelText('Название'), 'Встреча');
-  fireEvent.change(screen.getByLabelText('Дата начала'), { target: { value: '2026-10-20' } });
+  await selectDate('Дата начала', '2026-10-20');
   await userEvent.type(screen.getByLabelText('Место встречи'), 'Кафе');
 }
 
@@ -23,8 +24,8 @@ it('creates in the selected chat and enabled topic, passes place and preserves a
   expect(screen.queryByRole('option', { name: 'Архив' })).not.toBeInTheDocument();
   await fill();
   await userEvent.click(screen.getByRole('checkbox', { name: /Отправить событие в личку/ }));
-  await userEvent.selectOptions(screen.getByLabelText('Чат'), chats[1].id);
-  await userEvent.selectOptions(screen.getByLabelText('Тема'), '20');
+  await selectOption('Чат', 'Клуб');
+  await selectOption('Тема', 'Обсуждения');
   await userEvent.type(screen.getByLabelText('Теги через пробел'), '#встреча #клуб');
   await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Проверьте время');
@@ -75,7 +76,7 @@ it('requires a location or connection link without an unspecified-place bypass',
   vi.mocked(createEvent).mockResolvedValue(event);
   render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={vi.fn()} />);
   await userEvent.type(screen.getByLabelText('Название'), 'Онлайн встреча');
-  fireEvent.change(screen.getByLabelText('Дата начала'), { target: { value: '2026-10-20' } });
+  await selectDate('Дата начала', '2026-10-20');
   expect(screen.queryByLabelText('Место уточняется')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('место встречи или ссылку');
@@ -90,8 +91,8 @@ it('opens a labelled dialog and blocks background scrolling until unmounted', ()
   const view = render(<EventForm chats={chats} raw="signed" initialChatId={chats[1].id} initialTopicId="20" onSaved={vi.fn()} onClose={vi.fn()} />);
   expect(screen.getByRole('dialog', { name: 'Создать событие' })).toHaveAttribute('open');
   expect(screen.getByRole('heading', { name: 'Создать событие' })).toHaveFocus();
-  expect(screen.getByLabelText('Чат')).toHaveValue(chats[1].id);
-  expect(screen.getByLabelText('Тема')).toHaveValue('20');
+  expect(screen.getByRole('combobox', { name: 'Чат' })).toHaveTextContent('Клуб');
+  expect(screen.getByRole('combobox', { name: 'Тема' })).toHaveTextContent('Обсуждения');
   expect(document.body.style.overflow).toBe('hidden');
   view.unmount();
   expect(document.body.style.overflow).toBe('auto');
@@ -101,7 +102,7 @@ it('opens a labelled dialog and blocks background scrolling until unmounted', ()
 it('requires an explicit replacement for an unavailable launch topic', () => {
   render(<EventForm chats={chats} raw="signed" initialChatId={chats[0].id} initialTopicId="11" onSaved={vi.fn()} onClose={vi.fn()} />);
   expect(screen.getByRole('status')).toHaveTextContent('Исходная тема недоступна');
-  expect(screen.getByLabelText('Тема')).toHaveValue('');
+  expect(screen.getByRole('combobox', { name: 'Тема' })).toHaveTextContent('Выберите тему');
   expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeDisabled();
 });
 
@@ -138,4 +139,48 @@ it('keeps a dirty draft when discarding is declined, including an uncertain save
   await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
   expect(window.confirm).toHaveBeenLastCalledWith(expect.stringContaining('Сохранение могло состояться'));
   expect(close).not.toHaveBeenCalled();
+});
+
+it('never inherits invitation intent on edit and avoids sending an unchanged draft', async () => {
+  render(<EventForm chats={chats} raw="signed" event={{ ...event, data: { ...event.data, notify_members: true } }} onSaved={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByRole('checkbox', { name: 'Уведомить участников об изменениях' })).not.toBeChecked();
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Нет изменений');
+  expect(editEvent).not.toHaveBeenCalled();
+});
+
+it('confirms optional edit notifications separately and sends only after explicit consent', async () => {
+  vi.mocked(editEvent).mockResolvedValue({ ...event, version: 2 });
+  render(<EventForm chats={chats} raw="signed" event={event} onSaved={vi.fn()} onClose={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText('Место встречи'), ' новый адрес');
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Уведомить участников об изменениях' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  expect(screen.getByRole('dialog', { name: 'Уведомить об изменениях?' })).toBeVisible();
+  expect(editEvent).not.toHaveBeenCalled();
+  fireEvent(screen.getByRole('dialog', { name: 'Уведомить об изменениях?' }), new Event('cancel', { cancelable: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  await userEvent.click(screen.getAllByRole('button', { name: 'Отмена' }).at(-1)!);
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить и уведомить' }));
+  await waitFor(() => expect(editEvent).toHaveBeenCalledWith('signed', event, expect.objectContaining({ notify_members: true })));
+});
+
+it('validates the date and supports custom format, dates, time and all-day controls', async () => {
+  vi.mocked(createEvent).mockResolvedValue(event);
+  render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText('Название'), 'Встреча');
+  await userEvent.type(screen.getByLabelText('Место встречи'), 'Кафе');
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('дату начала');
+  await selectDate('Дата начала', '2026-10-20');
+  await selectDate('Дата окончания', '2026-10-20');
+  await selectOption('Формат встречи', 'Гибридная');
+  for (const name of ['Время начала', 'Время окончания']) {
+    await userEvent.click(screen.getByRole('button', { name }));
+    await userEvent.click(screen.getByRole('button', { name: 'Подтвердить' }));
+  }
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Весь день' }));
+  expect(screen.getByRole('button', { name: 'Время начала' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  await waitFor(() => expect(createEvent).toHaveBeenCalledWith('signed', chats[0].id, expect.objectContaining({ start_time: null, end_time: null, meeting_format: 'hybrid' }), expect.any(String)));
 });

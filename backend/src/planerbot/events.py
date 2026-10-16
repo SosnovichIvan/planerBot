@@ -11,6 +11,7 @@ from planerbot.event_contracts import (
     InvalidEvent,
 )
 from planerbot.event_repository import EventRepository
+from planerbot.event_updates import annotate_updates
 from planerbot.repository import ChatRecord, ChatRepository
 
 
@@ -101,11 +102,12 @@ class EventService:
                     )
                 ).all()
             )
+            views = await annotate_updates(session, result.events, user_id)
         return result.model_copy(
             update={
                 "events": [
                     event.model_copy(update={"my_response": answers.get(event.id, "unanswered")})
-                    for event in result.events
+                    for event in views
                 ]
             }
         )

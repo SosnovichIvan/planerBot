@@ -52,7 +52,8 @@ export function creationTarget(raw: string): { chatId?: string; topicId?: string
 export function connectTelegram(): () => void {
   const app = window.Telegram?.WebApp;
   if (!app) return () => {};
-  const theme = () => { document.documentElement.dataset.theme = app.colorScheme; };
+  // The product starts dark, independent of Telegram's surrounding theme.
+  const theme = () => { document.documentElement.dataset.theme = localStorage.getItem('planerbot-theme') === 'light' ? 'light' : 'dark'; };
   theme();
   app.ready();
   app.expand();

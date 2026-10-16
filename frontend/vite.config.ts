@@ -10,7 +10,7 @@ export default defineConfig({
     setupFiles: ['./src/app/test-setup.ts'],
     coverage: {
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.*', 'src/**/*.d.ts', 'src/app/test-setup.ts'],
+      exclude: ['src/**/*.test.*', 'src/**/*.test-support.ts', 'src/**/*.d.ts', 'src/app/test-setup.ts'],
       thresholds: { lines: 90, branches: 90, functions: 90, statements: 90 },
       reporter: ['text', 'json-summary'],
     },

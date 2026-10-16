@@ -368,6 +368,15 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** EventChange */
+        EventChange: {
+            /** Field */
+            field: string;
+            /** Before */
+            before: string;
+            /** After */
+            after: string;
+        };
         /** EventDetails */
         EventDetails: {
             event: components["schemas"]["EventView"];
@@ -545,6 +554,13 @@ export interface components {
              * @enum {string}
              */
             my_response: "yes" | "no" | "unanswered";
+            /**
+             * Has Updates
+             * @default false
+             */
+            has_updates: boolean;
+            /** Changes */
+            changes?: components["schemas"]["EventChange"][];
         };
         /** EventsView */
         EventsView: {

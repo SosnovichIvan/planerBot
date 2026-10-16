@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from planerbot.campaigns import enqueue_campaign
 from planerbot.event_contracts import Conflict, EventInput, EventsView, EventView, MissingEvent
-from planerbot.models import Chat, Event, Publication, Topic
+from planerbot.models import Chat, Event, EventRevision, Publication, Topic
 
 
 def message_link(chat_id: int, message_id: int | None, topic_id: int = 1) -> str | None:
@@ -144,7 +144,17 @@ class EventRepository:
                 elif source_date is not None and event.source_updated_at is not None:
                     if (source_date, update_id) > (event.source_updated_at, event.source_update_id):
                         if event.status != "cancelled":
-                            self.assign(event, data, timezone)
+                            if event.payload != data.model_dump(
+                                mode="json", exclude={"notify_members"}
+                            ):
+                                session.add(
+                                    EventRevision(
+                                        event_id=event.id,
+                                        version=event.version + 1,
+                                        previous_payload=event.payload,
+                                    )
+                                )
+                                self.assign(event, data, timezone)
                             event.status = status
                             event.source_updated_at, event.source_update_id = source_date, update_id
                             changed = True
@@ -199,6 +209,13 @@ class EventRepository:
             if event.status == "cancelled":
                 raise Conflict("Событие уже отменено")
             if data is not None:
+                if event.payload == data.model_dump(mode="json", exclude={"notify_members"}):
+                    return await self.read(session, chat_id, event_id)
+                session.add(
+                    EventRevision(
+                        event_id=event.id, version=event.version + 1, previous_payload=event.payload
+                    )
+                )
                 self.assign(event, data, event.timezone)
             else:
                 if action == "approve" and event.status != "pending":
@@ -208,6 +225,17 @@ class EventRepository:
             event.editor_id = user_id
             await session.flush()
             await enqueue(session, event)
+            if data is not None and data.notify_members and event.status == "active":
+                from uuid import NAMESPACE_URL, uuid5
+
+                await enqueue_campaign(
+                    session,
+                    event,
+                    user_id,
+                    uuid5(NAMESPACE_URL, f"revision:{event.id}:{event.version}"),
+                    "all",
+                    "Событие изменилось. Посмотрите обновления в календаре.",
+                )
             return await self.read(session, chat_id, event_id)
 
     async def list(

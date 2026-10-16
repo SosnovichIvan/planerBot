@@ -54,7 +54,7 @@ it('uses RSVP detail, response, campaign and opt-out contracts', async () => {
 
 const draft: EventDraft = { title: 'Встреча', topic_id: 10, start_date: '2026-10-20', place_pending: true, description: '', meeting_format: 'offline', place: '', address: '', map_url: '', online_url: '', notify_members: false };
 const settings = { version: 1, timezone: 'UTC', event_tag: '#event', enabled_topic_ids: [], creation_policy: 'admins' as const, confirmation_required: false };
-const event: CalendarEvent = { id: '00000000-0000-4000-8000-000000000001', chat_id: '-100100', chat_title: 'А', topic_title: 'Встречи', data: draft, timezone: 'UTC', starts_at: '2026-10-20T00:00:00Z', ends_at: null, version: 1, status: 'active', source: 'form', source_message_id: null, publication_status: 'pending', can_manage: true, my_response: 'unanswered' };
+const event: CalendarEvent = { id: '00000000-0000-4000-8000-000000000001', chat_id: '-100100', chat_title: 'А', topic_title: 'Встречи', data: draft, timezone: 'UTC', starts_at: '2026-10-20T00:00:00Z', ends_at: null, version: 1, status: 'active', source: 'form', source_message_id: null, publication_status: 'pending', can_manage: true, my_response: 'unanswered', has_updates: false };
 
 it('uses generated HTTP routes, typed bodies, versions and idempotency keys', async () => {
   const fetch = vi.fn().mockImplementation((request: Request) => {

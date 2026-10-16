@@ -37,7 +37,8 @@ async def engine():
     async with db.begin() as connection:
         await connection.execute(
             text(
-                "TRUNCATE personal_notices, message_campaigns, event_responses, "
+                "TRUNCATE event_revisions, event_seen, personal_notices, "
+                "message_campaigns, event_responses, "
                 "calendar_participants, personal_contacts, publications, events, topics, chats"
             )
         )

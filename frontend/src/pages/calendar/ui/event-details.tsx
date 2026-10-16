@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiFailure, campaignStatus, disablePersonalMessages, errorText, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
-import type { Answer, Campaign, EventDetails as Details } from '../../../shared/api';
+import type { Answer, Campaign, Chat, EventDetails as Details } from '../../../shared/api';
 import { requestPersonalMessages, openTelegramMessage } from '../../../shared/telegram';
 import { Modal } from '../../../shared/ui/modal';
+import { EventForm } from './event-form';
+import { formatDate } from '../../../shared/lib/date';
 
 const labels: Record<Answer, string> = { yes: 'Приду', no: 'Не приду', unanswered: 'Не проголосовали' };
 const deliveryLabels: Record<string, string> = { pending: 'В очереди', sending: 'Отправляется', sent: 'Отправлено', skipped: 'Пропущено', failed: 'Ошибка', unknown: 'Доставка неизвестна' };
 type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; data: Details };
 
-export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw: string; chatId: string; eventId: string; onClose: () => void; onChanged: () => void }) {
+export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats = [] }: { raw: string; chatId: string; eventId: string; onClose: () => void; onChanged: () => void; chats?: Chat[] }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [editing, setEditing] = useState(false);
   const [audience, setAudience] = useState<Answer | null>(null);
   const [text, setText] = useState('');
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -24,11 +27,11 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
   useEffect(() => {
     const controller = new AbortController();
     loadEventDetails(raw, chatId, eventId, controller.signal).then(
-      (data) => { if (!controller.signal.aborted) setState({ kind: 'ready', data }); },
+      (data) => { if (!controller.signal.aborted) { setState({ kind: 'ready', data }); onChanged(); } },
       (cause: unknown) => { if (!controller.signal.aborted) setState({ kind: 'error', message: errorText(cause) }); },
     );
     return () => controller.abort();
-  }, [raw, chatId, eventId, attempt]);
+  }, [raw, chatId, eventId, attempt, onChanged]);
 
   async function act(action: () => Promise<void>) {
     if (lock.current) return;
@@ -39,17 +42,35 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
 
   const data = state.kind === 'ready' ? state.data : null;
   const event = data?.event;
+  function closeCampaign() {
+    if (lock.current) return;
+    if (uncertain ? !window.confirm('Рассылка могла быть создана. Закрыть без проверки? Повторное создание может отправить сообщения ещё раз.')
+      : text.trim() && !window.confirm('Закрыть форму и потерять несохранённое сообщение?')) return;
+    setAudience(null); setText(''); setUncertain(false); submitted.current = null; setError('');
+  }
   return <Modal title={event?.data.title ?? 'Событие'} busy={busy} onClose={() => { if (!lock.current && (!uncertain || window.confirm('Рассылка могла быть создана. Закрыть без проверки? Повторное создание может отправить сообщения ещё раз.'))) onClose(); }}>
     {state.kind === 'loading' && <p className="mt-5" role="status">Загружаем событие…</p>}
     {state.kind === 'error' && <div className="mt-5" role="alert"><p>{state.message}</p><button className="secondary-button mt-3" onClick={() => { setState({ kind: 'loading' }); setAttempt((value) => value + 1); }}>Повторить загрузку</button></div>}
     {event && data && <>
       <p className="mt-4 text-sm text-muted">{event.chat_title} · {event.topic_title}</p>
-      <p className="mt-3">{event.data.start_date} · {event.data.start_time ?? 'Весь день'} · {event.timezone}</p>
+      <p className="mt-3">{formatDate(event.data.start_date)} · {event.data.start_time ?? 'Весь день'} · {event.timezone}</p>
       <p className="mt-3 break-words">{[event.data.place, event.data.address].filter(Boolean).join(', ')}</p>
       {event.data.description && <p className="mt-3 whitespace-pre-wrap break-words">{event.data.description}</p>}
+      {!!event.data.tags?.length && <p className="mt-3 break-words text-xs text-muted">{event.data.tags.join(' ')}</p>}
+      {!!event.changes?.length && <section className="mt-5 rounded-xl border border-accent bg-accent/10 p-4" aria-label="Что изменилось">
+        <h3 className="font-semibold">Что изменилось</h3>
+        <dl className="mt-3 space-y-3">{event.changes.map((change) => <div key={change.field} className="break-words text-sm">
+          <dt className="text-muted">{({ title: 'Название', start_date: 'Дата начала', start_time: 'Время начала', end_date: 'Дата окончания', end_time: 'Время окончания', place: 'Место', address: 'Адрес', description: 'Описание', online_url: 'Ссылка подключения', map_url: 'Карта', meeting_format: 'Формат', tags: 'Теги' } as Record<string, string>)[change.field] ?? change.field}</dt>
+          <dd className="mt-1"><del className="text-muted">{change.before}</del><span aria-label="теперь"> → </span>{change.after}</dd>
+        </div>)}</dl>
+      </section>}
       {event.data.online_url && <a className="mt-3 block underline" href={event.data.online_url} target="_blank" rel="noreferrer">Подключиться онлайн</a>}
       {event.data.map_url && <a className="mt-3 block underline" href={event.data.map_url} target="_blank" rel="noreferrer">Открыть карту</a>}
       {event.message_url && <a className="mt-3 block underline" href={event.message_url} onClick={(e) => { if (openTelegramMessage(event.message_url!)) e.preventDefault(); }}>Сообщение в Telegram</a>}
+      {event.can_manage && event.status !== 'cancelled' && chats.some((chat) => chat.id === event.chat_id && chat.can_manage) && <button className="secondary-button mt-4" onClick={() => setEditing(true)}>Редактировать</button>}
+      {editing && <EventForm raw={raw} chats={chats} event={event} onClose={() => setEditing(false)} onSaved={(saved, message) => {
+        setEditing(false); setNotice(message ?? (saved.version === event.version ? 'Нет изменений.' : 'Изменения сохранены. Статус публикации обновится после обработки очереди.')); setAttempt((value) => value + 1); onChanged();
+      }} />}
       {event.status === 'active' ? <>
         <p className={`mt-6 font-semibold ${event.my_response === 'unanswered' ? 'text-attention' : ''}`}>{event.my_response === 'unanswered' ? 'Нужен ваш ответ' : `Ваш ответ: ${labels[event.my_response ?? 'unanswered']}`}</p>
         <div className="mt-3 flex flex-wrap gap-2" aria-label="Ваш ответ">
@@ -65,7 +86,9 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
           <button className="secondary-button" key={group} disabled={busy || uncertain} onClick={() => { setAudience(group); setCampaign(null); setNotice(''); }}>{labels[group]}: {data.counts![group]}</button> :
           <p className="rounded-xl border border-line p-3 text-sm" key={group}>{labels[group]}: {data.counts![group]}</p>)}</div>
       </section>}
-      {audience && event.can_manage && data.counts && <form className="mt-5 rounded-xl border border-line p-4" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
+      {audience && event.can_manage && data.counts && <Modal title={`Сообщение: ${labels[audience]}`} closeLabel="Закрыть форму отправки" busy={busy} onClose={closeCampaign}>
+        <p className="mt-4 break-words text-sm text-muted">{event.data.title} · {event.chat_title}</p>
+        <form className="mt-5" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
         if (!submitted.current && !window.confirm(`Отправить личное сообщение группе «${labels[audience]}»? Получат только участники календаря с разрешёнными сообщениями.`)) return;
         void act(async () => {
           submitted.current ??= { key: crypto.randomUUID(), audience, text: text.trim() };
@@ -76,11 +99,12 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
           submitted.current = null; setUncertain(false); setAudience(null); setText(''); setNotice('Рассылка поставлена в очередь. Это ещё не подтверждение доставки.');
         });
       }}>
-        <h3 className="font-semibold">Сообщение: {labels[audience]}</h3>
         <label className="form-label mt-3">Текст сообщения<textarea className="field" required maxLength={1500} value={text} disabled={busy || uncertain} onChange={(e) => setText(e.target.value)} /></label>
         <p className="mt-2 text-xs text-muted">К сообщению добавится ссылка на событие. Сменившие ответ или вышедшие из чата будут пропущены.</p>
         <button className="button mt-4" disabled={busy || !text.trim()}>{uncertain ? 'Повторить тот же запрос' : 'Отправить группе'}</button>
-      </form>}
+        <button className="secondary-button ml-2 mt-4" type="button" disabled={busy} onClick={closeCampaign}>Отмена</button>
+        {error && <p className="mt-4 text-sm" role="alert">{error}</p>}
+      </form></Modal>}
       {campaign && <section className="mt-5 text-sm" aria-label="Доставка рассылки">
         {Object.entries(campaign.statuses ?? {}).map(([status, count]) => <p key={status}>{deliveryLabels[status]}: {count}</p>)}
         <button className="secondary-button mt-3" disabled={busy} onClick={() => void act(async () => { setCampaign(await campaignStatus(raw, event, campaign.id)); })}>Проверить доставку</button>
@@ -95,7 +119,7 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged }: { raw
         {!data.personal_messages_enabled && <button className="secondary-button ml-2 mt-3" disabled={busy} onClick={() => void act(async () => { setState({ kind: 'ready', data: await loadEventDetails(raw, chatId, eventId) }); })}>Обновить разрешение</button>}
       </section>
     </>}
-    {error && <p className="mt-4 text-sm" role="alert">{error}</p>}
+    {!audience && error && <p className="mt-4 text-sm" role="alert">{error}</p>}
     {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
   </Modal>;
 }
