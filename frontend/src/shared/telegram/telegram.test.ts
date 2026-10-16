@@ -1,7 +1,18 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectTelegram, creationTarget, initData } from './index';
+import { connectTelegram, creationTarget, initData, openTelegramMessage } from './index';
 
 afterEach(() => { delete window.Telegram; delete document.documentElement.dataset.theme; });
+
+it('uses Telegram navigation only for supported message links and falls back without SDK', () => {
+  const url = 'https://t.me/c/100/10/5';
+  expect(openTelegramMessage(url)).toBe(false);
+  window.Telegram = { WebApp: { initData: '', colorScheme: 'light', ready() {}, expand() {}, onEvent() {}, offEvent() {}, openTelegramLink: vi.fn() } };
+  expect(openTelegramMessage('https://evil.test/')).toBe(false);
+  expect(openTelegramMessage(url)).toBe(true);
+  expect(window.Telegram.WebApp.openTelegramLink).toHaveBeenCalledWith(url);
+  vi.mocked(window.Telegram.WebApp.openTelegramLink!).mockImplementation(() => { throw new Error('unsupported'); });
+  expect(openTelegramMessage(url)).toBe(false);
+});
 
 it('parses creation hints without treating arbitrary start params as creation', () => {
   expect(creationTarget('start_param=create')).toEqual({});

@@ -70,6 +70,20 @@ it('does not submit when no topic is enabled', () => {
   expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeDisabled();
 });
 
+it('requires a location or connection link without an unspecified-place bypass', async () => {
+  vi.mocked(createEvent).mockResolvedValue(event);
+  render(<EventForm chats={chats} raw="signed" onSaved={vi.fn()} onClose={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText('Название'), 'Онлайн встреча');
+  fireEvent.change(screen.getByLabelText('Дата начала'), { target: { value: '2026-10-20' } });
+  expect(screen.queryByLabelText('Место уточняется')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('место встречи или ссылку');
+  expect(createEvent).not.toHaveBeenCalled();
+  await userEvent.type(screen.getByLabelText('Ссылка подключения'), 'https://example.test/meet');
+  await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
+  await waitFor(() => expect(createEvent).toHaveBeenCalledWith('signed', chats[0].id, expect.objectContaining({ place: '', online_url: 'https://example.test/meet', place_pending: false }), expect.any(String)));
+});
+
 it('opens a labelled dialog and blocks background scrolling until unmounted', () => {
   document.body.style.overflow = 'auto';
   const view = render(<EventForm chats={chats} raw="signed" initialChatId={chats[1].id} initialTopicId="20" onSaved={vi.fn()} onClose={vi.fn()} />);

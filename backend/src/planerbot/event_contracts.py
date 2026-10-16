@@ -108,11 +108,12 @@ class EventInput(BaseModel):
         if self.end_date is not None and self.end_date != self.start_date and self.end_time is None:
             raise ValueError("Для многодневной встречи укажите время окончания")
         if not self.place_pending:
-            if self.meeting_format in {"offline", "hybrid"} and not (self.place or self.address):
-                raise ValueError("Укажите место встречи или отметьте «Место уточняется»")
-            if self.meeting_format in {"online", "hybrid"} and not self.online_url:
-                raise ValueError("Укажите ссылку подключения или отметьте «Место уточняется»")
+            self.require_location()
         return self
+
+    def require_location(self) -> None:
+        if not (self.place or self.address or self.map_url or self.online_url):
+            raise ValueError("Укажите место встречи или ссылку подключения")
 
     def times(self, timezone: str) -> tuple[datetime, datetime | None]:
         zone = ZoneInfo(timezone)

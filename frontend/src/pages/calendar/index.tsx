@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiFailure, loadChats } from '../../shared/api';
 import { creationTarget, initData } from '../../shared/telegram';
-import { eventDayCounts, monthDays, shiftMonth } from './model/month';
+import { eventDayCounts, eventsOnDate, monthDays, monthRange, shiftMonth } from './model/month';
 import type { CalendarEvent } from '../../shared/api';
 import { EventsPanel } from './ui/events-panel';
 import { SettingsForm } from './ui/settings-form';
+import { DayEvents } from './ui/day-events';
 
 type Chats = Awaited<ReturnType<typeof loadChats>>;
 type LoadState = { kind: 'loading' } | { kind: 'ready'; chats: Chats } | { kind: 'error'; status: number };
@@ -16,9 +17,14 @@ export function CalendarPage() {
   const [selectedChat, setSelectedChat] = useState('all');
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [creationConsumed, setCreationConsumed] = useState(false);
-  const [counts, setCounts] = useState<Record<number, number>>({});
-  const recordEvents = useCallback((events: CalendarEvent[]) => setCounts(eventDayCounts(events, month)), [month]);
+  const [eventState, setEventState] = useState<{ scope: string; events: CalendarEvent[]; more: boolean }>({ scope: '', events: [], more: false });
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const raw = initData();
+  const eventsScope = `${raw}:${monthRange(month).start}:${selectedChat}`;
+  const recordEvents = useCallback((events: CalendarEvent[], more = false) => setEventState({ scope: eventsScope, events, more }), [eventsScope]);
+  const monthEvents = eventState.scope === eventsScope && state.kind === 'ready' ? eventState.events : [];
+  const counts = eventDayCounts(monthEvents, month);
+  const selectedDate = selectedDay === null ? null : monthRange(month).start.slice(0, 8) + String(selectedDay).padStart(2, '0');
   const intent = creationConsumed ? null : creationTarget(raw);
 
   useEffect(() => {
@@ -67,7 +73,7 @@ export function CalendarPage() {
       ) : (
         <div>
           <label className="form-label mb-5">Чат
-            <select className="field" value={selectedChat} disabled={chats.length === 0} onChange={(event) => setSelectedChat(event.target.value)}>
+            <select className="field" value={selectedChat} disabled={chats.length === 0} onChange={(event) => { setSelectedDay(null); setSelectedChat(event.target.value); }}>
               <option value="all">Все чаты</option>
               {chats.map((chat) => <option key={chat.id} value={chat.id}>{chat.title}</option>)}
             </select>
@@ -77,8 +83,8 @@ export function CalendarPage() {
             <div className="mb-6 flex items-center justify-between gap-2">
               <h2 className="text-lg font-semibold capitalize" aria-live="polite">{title}</h2>
               <div className="flex gap-1">
-                <button className="icon-button" aria-label="Предыдущий месяц" onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
-                <button className="icon-button" aria-label="Следующий месяц" onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
+                <button className="icon-button" aria-label="Предыдущий месяц" onClick={() => { setSelectedDay(null); setMonth(shiftMonth(month, -1)); }}>‹</button>
+                <button className="icon-button" aria-label="Следующий месяц" onClick={() => { setSelectedDay(null); setMonth(shiftMonth(month, 1)); }}>›</button>
               </div>
             </div>
             <table className="w-full table-fixed text-center text-sm" aria-label={title}>
@@ -86,7 +92,9 @@ export function CalendarPage() {
               <tbody>{Array.from({ length: Math.ceil(monthDays(month).length / 7) }, (_, week) => (
                 <tr key={week}>{Array.from({ length: 7 }, (_, weekday) => {
                   const day = monthDays(month)[week * 7 + weekday];
-                  return <td key={weekday} className="h-11 sm:h-12"><span className="relative inline-flex size-9 items-center justify-center" aria-label={day && counts[day] ? `${day}, событий: ${counts[day]}` : undefined} title={day && counts[day] ? `Событий: ${counts[day]}` : undefined}>{day}{day && counts[day] > 0 ? <span className="absolute bottom-0 size-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}</span></td>;
+                  return <td key={weekday} className="h-11 sm:h-12">{day && counts[day] > 0 ?
+                    <button className="relative flex h-11 w-full cursor-pointer items-center justify-center rounded-xl hover:bg-canvas" aria-label={`${day}, событий: ${counts[day]}`} onClick={() => setSelectedDay(day)}>{day}<span className="absolute bottom-1 size-1.5 rounded-full bg-accent" aria-hidden="true" /></button>
+                    : <span className="inline-flex size-9 items-center justify-center">{day}</span>}</td>;
                 })}</tr>
               ))}</tbody>
             </table>
@@ -94,6 +102,7 @@ export function CalendarPage() {
         </div>
       )}
       {raw && state.kind === 'ready' && <>
+        {selectedDate && <DayEvents date={selectedDate} events={eventsOnDate(monthEvents, selectedDate)} incomplete={eventState.more} onClose={() => setSelectedDay(null)} />}
         <EventsPanel chats={chats} raw={raw} month={month} selectedChat={selectedChat} toolbarTarget={toolbarTarget} initialCreation={intent} onCreationHandled={() => setCreationConsumed(true)} onLoaded={recordEvents} onCreated={(event) => { setMonth(shiftMonth(new Date(`${event.data.start_date}T12:00:00`), 0)); setSelectedChat(event.chat_id); }} />
         {visibleChats.filter((chat) => chat.can_manage).map((chat) => <section className="panel mt-6" key={chat.id} aria-label={`Настройки: ${chat.title}`}>
           <h2 className="text-sm font-semibold">{chat.title}</h2>
