@@ -15,12 +15,12 @@ it('saves timezone, tag, author policy and topic toggles with optimistic version
   vi.mocked(configureChat).mockResolvedValue(undefined);
   render(<SettingsForm chat={chats[0]} raw="signed" onSaved={saved} />);
   await userEvent.click(screen.getByText('Настройки чата'));
-  await userEvent.selectOptions(screen.getByLabelText('Кто создаёт из сообщений'), 'members');
+  expect(screen.queryByLabelText('Кто создаёт из сообщений')).not.toBeInTheDocument();
   await userEvent.click(screen.getByLabelText('Подтверждать импорт администраторов'));
   await userEvent.click(screen.getByLabelText('Архив'));
   await userEvent.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
-  expect(configureChat).toHaveBeenCalledWith('signed', chats[0].id, expect.objectContaining({ version: 1, enabled_topic_ids: [10, 11], creation_policy: 'members', confirmation_required: true }));
+  expect(configureChat).toHaveBeenCalledWith('signed', chats[0].id, expect.objectContaining({ version: 1, enabled_topic_ids: [10, 11], creation_policy: 'admins', confirmation_required: true }));
 });
 
 it('preserves values after conflict and prevents parallel submit', async () => {

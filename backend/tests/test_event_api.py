@@ -60,6 +60,13 @@ async def test_http_create_update_cancel_and_private_lists(engine):
         assert len((await client.get(query, headers=headers)).json()["events"]) == 1
         member = {"Authorization": "tma " + signed(user_id=43)}
         assert (
+            await client.post(
+                path,
+                headers={**member, "Idempotency-Key": str(uuid4())},
+                json=draft().model_dump(mode="json"),
+            )
+        ).status_code == 403
+        assert (
             await client.post(path, headers=member, json=draft().model_dump(mode="json"))
         ).status_code == 422  # Missing idempotency key.
         assert (await client.get(query + f"&chat_id={B}", headers=member)).status_code == 403
@@ -86,13 +93,21 @@ async def test_settings_approval_and_retry_routes(engine):
             "timezone": "Europe/Moscow",
             "event_tag": "#событие",
             "enabled_topic_ids": [10],
-            "creation_policy": "members",
+            "creation_policy": "admins",
+            "confirmation_required": True,
         }
+        assert (
+            await client.put(
+                f"/api/chats/{A}/settings",
+                headers=headers,
+                json={**settings, "creation_policy": "members"},
+            )
+        ).status_code == 422
         assert (
             await client.put(f"/api/chats/{A}/settings", headers=headers, json=settings)
         ).status_code == 204
         pending = await service.import_message(
-            43, A, 10, "#событие\nНазвание: Встреча\nДата: 2026-10-20", 1, STAMP, 1
+            42, A, 10, "#событие\nНазвание: Встреча\nДата: 2026-10-20", 1, STAMP, 1
         )
         assert (
             await client.post(

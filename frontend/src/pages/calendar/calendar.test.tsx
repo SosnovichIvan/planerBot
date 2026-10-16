@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, loadChats } from '../../shared/api';
+import { ApiFailure, loadChats, loadEvents } from '../../shared/api';
 import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
 
@@ -27,19 +27,26 @@ it('explains the Telegram entry point and does not request data outside Telegram
   expect(loadChats).not.toHaveBeenCalled();
 });
 
-it('shows loading, real chats, topics, filters and month navigation', async () => {
+it('shows a compact toolbar, chat selector and month navigation', async () => {
   let resolve!: (value: typeof chats) => void;
   vi.mocked(loadChats).mockReturnValue(new Promise((done) => { resolve = done; }));
   render(<CalendarPage />);
   expect(screen.getByRole('status')).toHaveTextContent('Проверяем доступ');
   await act(() => { resolve(chats); });
-  expect(screen.getByText('# Встречи')).toBeVisible();
-  expect(screen.getByText('Вы администратор')).toBeVisible();
-  expect(screen.getByText('Вы участник')).toBeVisible();
+  expect(screen.queryByText('Личный календарь')).not.toBeInTheDocument();
+  expect(screen.queryByText('Ваше время, вместе')).not.toBeInTheDocument();
+  const create = screen.getByRole('button', { name: 'Создать событие' });
+  expect(create.closest('header')).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Обновить события' }).parentElement).toBe(create.parentElement);
+  expect(screen.queryByLabelText('Фильтр по тегу')).not.toBeInTheDocument();
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Показать чат' }), '-2');
-  expect(screen.queryByText('# Встречи')).not.toBeInTheDocument();
-  expect(screen.queryByText('Вы администратор')).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  await waitFor(() => expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: -2 })));
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), 'all');
+  await waitFor(() => expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: undefined })));
+  await user.click(screen.getByRole('button', { name: 'Создать событие' }));
+  expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Закрыть форму' }));
   const original = screen.getByRole('table').getAttribute('aria-label');
   await user.click(screen.getByRole('button', { name: 'Следующий месяц' }));
   expect(screen.getByRole('table').getAttribute('aria-label')).not.toBe(original);
@@ -52,7 +59,8 @@ it('shows an empty state without inventing events', async () => {
   vi.mocked(loadChats).mockResolvedValue([]);
   render(<CalendarPage />);
   expect(await screen.findByText(/Доступных чатов пока нет/)).toBeVisible();
-  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Чат' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Создать событие' })).not.toBeInTheDocument();
 });
 
 it('handles an expired identity without a pointless retry', async () => {
@@ -62,12 +70,21 @@ it('handles an expired identity without a pointless retry', async () => {
   expect(screen.queryByRole('button', { name: 'Попробовать снова' })).not.toBeInTheDocument();
 });
 
+it('shows refresh but not creation or settings for a member', async () => {
+  vi.mocked(loadChats).mockResolvedValue(chats.map((chat) => ({ ...chat, can_manage: false })));
+  render(<CalendarPage />);
+  expect(await screen.findByRole('combobox', { name: 'Чат' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Обновить события' }).closest('header')).not.toBeNull();
+  expect(screen.queryByRole('button', { name: 'Создать событие' })).not.toBeInTheDocument();
+  expect(screen.queryByText('Настройки чата')).not.toBeInTheDocument();
+});
+
 it('hides data during failure and supports retry', async () => {
   vi.mocked(loadChats).mockRejectedValueOnce(new ApiFailure(503)).mockResolvedValueOnce(chats);
   render(<CalendarPage />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось проверить доступ');
   await userEvent.click(screen.getByRole('button', { name: 'Попробовать снова' }));
-  expect(await screen.findByText('Вы администратор')).toBeVisible();
+  expect(await screen.findByRole('button', { name: 'Создать событие' })).toBeVisible();
 });
 
 it('handles a network error', async () => {

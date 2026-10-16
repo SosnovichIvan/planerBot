@@ -40,7 +40,13 @@ class ChatStore(Protocol):
     async def candidates(self, after: int | None) -> list[ChatRecord]: ...
 
     async def register(
-        self, chat_id: int, title: str, thread_id: int, topic_title: str
+        self,
+        chat_id: int,
+        title: str,
+        thread_id: int,
+        topic_title: str,
+        *,
+        overwrite_title: bool = True,
     ) -> None: ...
 
 
