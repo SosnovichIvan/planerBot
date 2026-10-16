@@ -13,6 +13,7 @@ from planerbot.auth import Viewer
 from planerbot.campaigns import enqueue_campaign
 from planerbot.event_contracts import Conflict, EventView, MissingEvent
 from planerbot.event_repository import EventRepository
+from planerbot.event_updates import view_updates
 from planerbot.models import (
     CalendarParticipant,
     Event,
@@ -176,6 +177,7 @@ class RsvpService:
             view = view.model_copy(
                 update={"can_manage": target.can_manage, "my_response": own or "unanswered"}
             )
+            view = await view_updates(session, view, user.id)
             return EventDetails(
                 event=view,
                 counts=counts,

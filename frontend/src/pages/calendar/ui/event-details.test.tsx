@@ -1,13 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, campaignStatus, disablePersonalMessages, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
 import * as telegram from '../../../shared/telegram';
 import type { EventDetails as Details } from '../../../shared/api';
 import { EventDetails } from './event-details';
-import { event } from './fixtures.test-data';
+import { chats, event } from './fixtures.test-data';
 
-vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
+vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), editEvent: vi.fn(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
 const details = (admin = true, answered = false): Details => ({ event: { ...event, can_manage: admin, my_response: answered ? 'yes' : 'unanswered' }, counts: answered ? { yes: 1, no: 1, unanswered: 2 } : null, personal_messages_enabled: false });
 function show(onClose = vi.fn(), onChanged = vi.fn()) { return render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={onClose} onChanged={onChanged} />); }
 
@@ -18,6 +18,21 @@ beforeEach(() => {
   vi.mocked(sendCampaign).mockReset().mockResolvedValue({ id: 'campaign', statuses: {} });
   vi.mocked(campaignStatus).mockReset().mockResolvedValue({ id: 'campaign', statuses: { sent: 1, pending: 2, unknown: 1 } });
   vi.mocked(disablePersonalMessages).mockReset().mockResolvedValue();
+});
+
+it('shows server changes and lets an admin edit through the event card without resetting votes', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.mocked(editEvent).mockResolvedValue({ ...event, version: 2 });
+  vi.mocked(loadEventDetails).mockResolvedValue({ ...details(true, true), event: { ...event, my_response: 'yes', changes: [{ field: 'place', before: 'Парк', after: 'Кафе' }, { field: 'other', before: '', after: 'Новое' }] } });
+  render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={vi.fn()} onChanged={vi.fn()} chats={chats} />);
+  expect(await screen.findByRole('region', { name: 'Что изменилось' })).toHaveTextContent('Парк');
+  await userEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+  await userEvent.type(screen.getByLabelText('Место встречи'), ' №2');
+  await userEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Изменения сохранены');
+  expect(screen.getByText('Ваш ответ: Приду')).toBeVisible();
 });
 
 it('hides all statistics until the viewer votes, including an administrator, and hides them again on reset', async () => {
@@ -37,7 +52,7 @@ it('hides all statistics until the viewer votes, including an administrator, and
   await userEvent.click(screen.getByRole('button', { name: 'Сбросить ответ' }));
   expect(await screen.findByText('Нужен ваш ответ')).toBeVisible();
   expect(screen.queryByLabelText('Ответы участников календаря')).not.toBeInTheDocument();
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(4);
 });
 
 it('confirms a group broadcast, reports delivery separately and prevents double submits', async () => {

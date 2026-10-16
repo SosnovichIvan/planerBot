@@ -5,6 +5,7 @@ import { ApiFailure, loadChats, loadEvents, loadEventDetails, respondEvent } fro
 import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
 import { event as calendarEvent } from './ui/fixtures.test-data';
+import { selectOption } from '../../shared/ui/controls.test-support';
 
 vi.mock('../../shared/api', async (original) => ({
   ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }), loadEventDetails: vi.fn(), respondEvent: vi.fn(),
@@ -16,12 +17,29 @@ const chats = [
 ];
 
 beforeEach(() => {
+  localStorage.clear();
   vi.restoreAllMocks();
   vi.mocked(loadChats).mockReset();
   vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false });
   vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false });
   vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
+});
+
+it('starts dark, remembers explicit theme selection and opens settings only for admins', async () => {
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  render(<CalendarPage />);
+  await screen.findByRole('combobox', { name: 'Чат' });
+  expect(document.documentElement.dataset.theme).toBe('dark');
+  await userEvent.click(screen.getByRole('button', { name: 'Включить светлую тему' }));
+  expect(localStorage.getItem('planerbot-theme')).toBe('light');
+  await userEvent.click(screen.getByRole('button', { name: 'Включить тёмную тему' }));
+  expect(localStorage.getItem('planerbot-theme')).toBe('dark');
+  await userEvent.click(screen.getByRole('button', { name: 'Настройки' }));
+  expect(screen.getByRole('dialog', { name: 'Настройки чатов' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Настройки: Рабочая команда' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
 it('opens a list for a multi-event day, then a card, and refreshes personal markers after voting', async () => {
@@ -40,7 +58,7 @@ it('opens a list for a multi-event day, then a card, and refreshes personal mark
   expect(await screen.findByRole('dialog', { name: 'Встреча команды' })).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Приду' }));
   expect(await screen.findByText('Ваш ответ: Приду')).toBeVisible();
-  expect(loadChats).toHaveBeenCalledTimes(2);
+  expect(loadChats).toHaveBeenCalledTimes(3);
 });
 
 it('opens an event deep link after chat permissions are loaded', async () => {
@@ -71,7 +89,7 @@ it('opens only events of the clicked day and navigates to their Telegram message
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   let finish!: (data: { events: typeof event[]; has_more: boolean }) => void;
   vi.mocked(loadEvents).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
-  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  await selectOption('Чат', 'Книжный клуб');
   expect(screen.queryByRole('button', { name: '20, событий: 1' })).not.toBeInTheDocument();
   await act(() => finish({ events: [], has_more: false }));
 });
@@ -92,13 +110,13 @@ it('shows a compact toolbar, chat selector and month navigation', async () => {
   expect(screen.queryByText('Личный календарь')).not.toBeInTheDocument();
   expect(screen.queryByText('Ваше время, вместе')).not.toBeInTheDocument();
   const create = screen.getByRole('button', { name: 'Создать событие' });
-  expect(create.closest('header')).not.toBeNull();
+  expect(create.closest('main')).not.toBeNull();
   expect(screen.getByRole('button', { name: 'Обновить события' }).parentElement).toBe(create.parentElement);
   expect(screen.queryByLabelText('Фильтр по тегу')).not.toBeInTheDocument();
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  await selectOption('Чат', 'Книжный клуб');
   await waitFor(() => expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: -2 })));
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), 'all');
+  await selectOption('Чат', 'Все чаты');
   await waitFor(() => expect(loadEvents).toHaveBeenLastCalledWith('signed', expect.any(AbortSignal), expect.objectContaining({ chat_id: undefined })));
   await user.click(screen.getByRole('button', { name: 'Создать событие' }));
   expect(screen.getByRole('button', { name: 'Создать и опубликовать' })).toBeVisible();
@@ -108,7 +126,7 @@ it('shows a compact toolbar, chat selector and month navigation', async () => {
   expect(screen.getByRole('table').getAttribute('aria-label')).not.toBe(original);
   await user.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
   expect(screen.getByRole('table')).toHaveAttribute('aria-label', original);
-  expect(screen.getByRole('heading', { name: 'События месяца' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Повестка' })).toBeVisible();
 });
 
 it('shows an empty state without inventing events', async () => {
@@ -130,7 +148,7 @@ it('shows refresh but not creation or settings for a member', async () => {
   vi.mocked(loadChats).mockResolvedValue(chats.map((chat) => ({ ...chat, can_manage: false })));
   render(<CalendarPage />);
   expect(await screen.findByRole('combobox', { name: 'Чат' })).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Обновить события' }).closest('header')).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Обновить события' }).closest('main')).not.toBeNull();
   expect(screen.queryByRole('button', { name: 'Создать событие' })).not.toBeInTheDocument();
   expect(screen.queryByText('Настройки чата')).not.toBeInTheDocument();
 });
@@ -140,9 +158,9 @@ it('opens creation from a Telegram link only after loading admin permissions, wi
   vi.mocked(loadChats).mockResolvedValue(chats);
   render(<CalendarPage />);
   expect(await screen.findByRole('dialog', { name: 'Создать событие' })).toBeVisible();
-  expect(screen.getByLabelText('Тема')).toHaveValue('10');
+  expect(screen.getByRole('combobox', { name: 'Тема' })).toHaveTextContent('Встречи');
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму' }));
-  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Чат' }), '-2');
+  await selectOption('Чат', 'Книжный клуб');
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
@@ -154,7 +172,7 @@ it('does not grant creation through a forged target pointing at a member chat', 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Создать событие' }));
   expect(screen.getByRole('dialog')).toBeVisible();
-  expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Чат' })).toHaveValue('-1');
+  expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Чат' })).toHaveTextContent('Рабочая команда');
 });
 
 it('opens a generic creation link with the first administered chat', async () => {
@@ -162,7 +180,7 @@ it('opens a generic creation link with the first administered chat', async () =>
   vi.mocked(loadChats).mockResolvedValue(chats);
   render(<CalendarPage />);
   const dialog = await screen.findByRole('dialog', { name: 'Создать событие' });
-  expect(within(dialog).getByLabelText('Чат')).toHaveValue('-1');
+  expect(within(dialog).getByRole('combobox', { name: 'Чат' })).toHaveTextContent('Рабочая команда');
 });
 
 it('hides data during failure and supports retry', async () => {

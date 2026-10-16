@@ -151,6 +151,12 @@ class RetryInput(BaseModel):
     ack_duplicate_risk: bool = False
 
 
+class EventChange(BaseModel):
+    field: str
+    before: str
+    after: str
+
+
 class EventView(BaseModel):
     id: UUID
     chat_id: str
@@ -168,6 +174,8 @@ class EventView(BaseModel):
     message_url: str | None = None
     can_manage: bool = False
     my_response: Literal["yes", "no", "unanswered"] = "unanswered"
+    has_updates: bool = False
+    changes: list[EventChange] = Field(default_factory=list)
 
 
 class EventsView(BaseModel):

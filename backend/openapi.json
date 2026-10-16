@@ -1258,6 +1258,29 @@
         ],
         "title": "ChatsResponse"
       },
+      "EventChange": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "before": {
+            "type": "string",
+            "title": "Before"
+          },
+          "after": {
+            "type": "string",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "before",
+          "after"
+        ],
+        "title": "EventChange"
+      },
       "EventDetails": {
         "properties": {
           "event": {
@@ -1639,6 +1662,18 @@
             ],
             "title": "My Response",
             "default": "unanswered"
+          },
+          "has_updates": {
+            "type": "boolean",
+            "title": "Has Updates",
+            "default": false
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/EventChange"
+            },
+            "type": "array",
+            "title": "Changes"
           }
         },
         "type": "object",
