@@ -22,6 +22,7 @@ Telegram-бот и персональный календарь событий и
 - [Контракт каркаса и проверка Telegram](docs/foundation.md).
 - [События, настройки, парсинг и доставка](docs/events-implementation.md).
 - [Автоподключение чатов и компактный календарь](docs/automatic-chat-calendar.md).
+- [Создание события из календаря и команды /event](docs/event-creation-flow.md).
 - [VPS, HTTPS на IP, релиз и восстановление](docs/deployment.md).
 - [Закрытый прокси для Telegram](docs/telegram-proxy.md).
 
