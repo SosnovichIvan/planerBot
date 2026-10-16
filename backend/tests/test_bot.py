@@ -120,7 +120,7 @@ async def test_polling_cleanup(monkeypatch):
     bot, engine, dispatcher = bot_stub(), AsyncMock(), AsyncMock()
     dispatcher.start_polling.side_effect = RuntimeError("stopped")
     dispatcher.resolve_used_update_types = lambda: ["message"]
-    monkeypatch.setattr("planerbot.polling.Bot", lambda token: bot)
+    monkeypatch.setattr("planerbot.polling.create_bot", lambda config: bot)
     monkeypatch.setattr("planerbot.polling.create_async_engine", lambda url, **kwargs: engine)
     monkeypatch.setattr("planerbot.polling.create_dispatcher", lambda *args: dispatcher)
     with pytest.raises(RuntimeError, match="stopped"):

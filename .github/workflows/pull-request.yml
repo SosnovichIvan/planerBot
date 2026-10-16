@@ -51,9 +51,11 @@ jobs:
           shellcheck deploy/*.sh
           docker compose -f deploy/compose.yaml config --quiet
           docker compose -f deploy/compose.yaml -f deploy/bootstrap.yaml config --quiet
+          docker compose -f deploy/compose.yaml -f deploy/proxy.yaml config --quiet
           docker build --target backend -t planerbot-backend:verification .
           docker run --rm planerbot-backend:verification pip check
           docker build --target gateway -t planerbot-gateway:verification .
+          docker build --target tunnel -t planerbot-tunnel:verification .
           bash deploy/smoke-test.sh
   backend:
     name: Backend
