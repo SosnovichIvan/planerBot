@@ -2,7 +2,8 @@
 
 Цель: `https://193.124.129.252`, выделенный VPS Ubuntu с Docker Compose v2.
 Без домена. Один экземпляр polling, один publication worker, один API и
-PostgreSQL 17. Это пилот с коротким окном обслуживания, не zero-downtime rollout.
+PostgreSQL 17 и отдельный SSH proxy tunnel. Это пилот с коротким окном обслуживания,
+не zero-downtime rollout.
 
 ## Контракт поставки
 
@@ -16,6 +17,8 @@ Release workflow запускается только на push тега, сна�
 Секреты не входят в build context или образы. `/etc/planerbot/runtime.env`
 (root:root, 0600) содержит новый BOT_TOKEN и случайный POSTGRES_PASSWORD (hex).
 DATABASE_URL вычисляется Compose из пароля, без передачи через аргументы процессов.
+Для VPS также нужны TELEGRAM_PROXY_URL и закрытые proxy SSH secrets:
+[контракт подключения](telegram-proxy.md).
 Старый токен из переписки не использовать. GitHub secret BOT_TOKEN сам по себе
 не копируется на VPS; после перевыпуска его обновляют в GitHub и на сервере.
 Root-пароль заменить отдельно, не передавать Actions; доступ по проверенному SSH-ключу.
@@ -75,7 +78,7 @@ timezone/тем, создание/парсинг/правка/отмена, work
 
 ## Обслуживание и восстановление
 
-`docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.yaml ps`
+`docker compose --env-file /etc/planerbot/runtime.env -f deploy/compose.yaml -f deploy/proxy.yaml ps`
 (добавить `RELEASE_TAG=текущий-тег` в окружение). Логи могут содержать персональные
 данные/ошибки провайдера; не публиковать их целиком. Docker log rotation 10MB × 3.
 
@@ -85,7 +88,9 @@ timezone/тем, создание/парсинг/правка/отмена, work
 Для первого пустого запуска дамп тоже создаётся. Резервные копии на том же VPS
 не защищают от его потери. RPO — последний дамп, RTO не измерен.
 
-Ошибка build/preflight не останавливает текущую версию. После остановки writers
+Ошибка build/preflight не останавливает текущие API/bot/worker. Preflight может
+перезапустить SSH tunnel; на время обновления возможен обрыв Telegram-соединений.
+После остановки writers
 ошибка backup/migration не запускает новую версию. Readiness не доказывает работу
 Telegram; дополнительно проверить polling/worker logs и публикацию в тестовую тему.
 При ошибке после миграции — forward fix; старую версию запускать только после
@@ -119,11 +124,10 @@ readiness API в read-only контейнере от UID 10001, pg_dump/pg_resto
 Read-only preflight VPS 2026-10-15: Let's Encrypt ACME directory доступен (200),
 но api.telegram.org по IPv4 даёт connect timeout, а IPv6 не имеет рабочего
 маршрута. Ранее установленный WARP сообщает missing registration, туннеля нет.
-Сетевые настройки не менялись. Release preflight теперь отказывает до build и
-остановки приложения при недоступности Telegram. Для запуска нужен отдельно
-согласованный рабочий маршрут/прокси; конфигурация пока предполагает прямой egress
-контейнеров. Исправление host curl само по себе не доказывает egress Docker —
-release.sh дополнительно проверяет его из backend image без токена до остановки writers.
+Сетевые настройки не менялись. После согласования владельцем подключён приватный
+Squid из vpn_proxy_server: [параметры и проверки](telegram-proxy.md).
+Прямой Telegram egress не требуется. После сборки и запуска SSH tunnel release.sh
+проверяет Telegram из backend image через тот же proxy без токена до остановки writers.
 
 Источники: [IP-сертификаты Let's Encrypt](https://letsencrypt.org/2026/03/11/shorter-certs-certbot),
 [Certbot renew/webroot](https://eff-certbot.readthedocs.io/en/stable/using.html).

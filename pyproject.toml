@@ -10,6 +10,7 @@ dependencies = [
   "aiogram>=3.31,<4", "fastapi>=0.115,<1", "uvicorn>=0.34,<1",
   "sqlalchemy[asyncio]>=2.0,<3", "asyncpg>=0.30,<1", "alembic>=1.15,<2",
   "pydantic-settings>=2.8,<3",
+  "aiohttp-socks>=0.12,<1",
 ]
 
 [project.optional-dependencies]

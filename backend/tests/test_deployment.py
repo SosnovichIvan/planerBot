@@ -69,7 +69,13 @@ def test_missing_main(release_repo: Path) -> None:
     assert guard(release_repo, "1.2.3").returncode != 0
 
 
-ENV = "BOT_TOKEN=123456:" + "a" * 35 + "\nPOSTGRES_PASSWORD=" + "a" * 64 + "\nACME_AGREE_TOS=yes\n"
+ENV = (
+    "BOT_TOKEN=123456:"
+    + "a" * 35
+    + "\nPOSTGRES_PASSWORD="
+    + "a" * 64
+    + "\nACME_AGREE_TOS=yes\nTELEGRAM_PROXY_URL=http://telegram-proxy:19840\n"
+)
 
 
 @pytest.mark.parametrize(
@@ -85,6 +91,7 @@ ENV = "BOT_TOKEN=123456:" + "a" * 35 + "\nPOSTGRES_PASSWORD=" + "a" * 64 + "\nAC
         (ENV.replace("123456:", "bad:"), False),
         (ENV.replace("a" * 64, "password@host"), False),
         (ENV.replace("a" * 35, "$(command)"), False),
+        (ENV.replace("http://telegram-proxy:19840", "http://public-proxy:3128"), False),
     ],
 )
 def test_environment_validation(contents: str, valid: bool) -> None:
