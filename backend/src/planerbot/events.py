@@ -78,13 +78,36 @@ class EventService:
             if chat_id is not None
             else await self.access.all_for(user_id)
         )
-        return await self.events.list(
+        result = await self.events.list(
             [t.chat.id for t in targets],
             [t.chat.id for t in targets if t.can_manage],
             start,
             end,
             topic_id,
             tag,
+        )
+        from sqlalchemy import select
+
+        from planerbot.models import EventResponse
+
+        async with self.events.sessions() as session:
+            answers = dict(
+                (
+                    await session.execute(
+                        select(EventResponse.event_id, EventResponse.answer).where(
+                            EventResponse.user_id == user_id,
+                            EventResponse.event_id.in_([event.id for event in result.events]),
+                        )
+                    )
+                ).all()
+            )
+        return result.model_copy(
+            update={
+                "events": [
+                    event.model_copy(update={"my_response": answers.get(event.id, "unanswered")})
+                    for event in result.events
+                ]
+            }
         )
 
     async def import_message(

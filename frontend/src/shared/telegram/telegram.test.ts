@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectTelegram, creationTarget, initData, openTelegramMessage } from './index';
+import { connectTelegram, creationTarget, eventTarget, initData, openTelegramMessage, requestPersonalMessages } from './index';
 
 afterEach(() => { delete window.Telegram; delete document.documentElement.dataset.theme; });
 
@@ -18,6 +18,22 @@ it('parses creation hints without treating arbitrary start params as creation', 
   expect(creationTarget('start_param=create')).toEqual({});
   expect(creationTarget('start_param=create_-100100_10')).toEqual({ chatId: '-100100', topicId: '10' });
   for (const raw of ['', 'start_param=chat_-100100', 'start_param=create_42_10', 'start_param=create_-1_0', 'start_param=create_-1_10_extra']) expect(creationTarget(raw)).toBeNull();
+});
+
+it('parses an event deep link only as a navigation hint', () => {
+  expect(eventTarget('start_param=event_-100100_00000000000040008000000000000001')).toEqual({ chatId: '-100100', eventId: '00000000-0000-4000-8000-000000000001' });
+  for (const raw of ['', 'start_param=create', 'start_param=event_42_bad']) expect(eventTarget(raw)).toBeNull();
+});
+
+it('requests personal-message permission only through the supported SDK', async () => {
+  expect(await requestPersonalMessages()).toBe(false);
+  const app = { initData: '', colorScheme: 'light' as const, ready() {}, expand() {}, onEvent() {}, offEvent() {} };
+  window.Telegram = { WebApp: app };
+  expect(await requestPersonalMessages()).toBe(false);
+  window.Telegram.WebApp.requestWriteAccess = (callback) => callback(true);
+  expect(await requestPersonalMessages()).toBe(true);
+  window.Telegram.WebApp.requestWriteAccess = () => { throw new Error('unsupported'); };
+  expect(await requestPersonalMessages()).toBe(false);
 });
 
 it('does not create identity outside Telegram', () => {

@@ -21,7 +21,7 @@ export function Modal({ title, onClose, busy = false, children, closeLabel = 'З
   }, []);
   return <dialog ref={dialogRef} className="modal" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="flex items-start justify-between gap-3">
-      <h2 ref={headingRef} tabIndex={-1} id={titleId} className="text-xl font-semibold">{title}</h2>
+      <h2 ref={headingRef} tabIndex={-1} id={titleId} className="min-w-0 break-words text-xl font-semibold">{title}</h2>
       <button className="secondary-button shrink-0" type="button" disabled={busy} onClick={onClose} aria-label={closeLabel}>Закрыть</button>
     </div>
     {children}

@@ -43,6 +43,7 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
       place: value('place'), address: value('address'), map_url: value('map_url'),
       online_url: value('online_url'), place_pending: false,
       tags: value('tags').split(/\s+/).filter(Boolean),
+      notify_members: event?.data.notify_members ?? fields.get('notify_members') === 'on',
     };
     if (!draft.place && !draft.address && !draft.map_url && !draft.online_url) {
       setError('Укажите место встречи или ссылку подключения');
@@ -90,6 +91,7 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
         <label className="form-label">Ссылка подключения<input className="field" type="url" name="online_url" maxLength={400} defaultValue={data?.online_url} /></label>
         <label className="form-label">Описание<textarea className="field min-h-24" name="description" maxLength={1200} defaultValue={data?.description} /></label>
         <label className="form-label">Теги через пробел<input className="field" name="tags" defaultValue={data?.tags?.join(' ')} placeholder="#встреча #команда" /></label>
+        {!event && <label className="form-label flex items-start gap-3"><input className="mt-1 size-5 shrink-0" type="checkbox" name="notify_members" />Отправить событие в личку участникам календаря, разрешившим сообщения</label>}
       </fieldset>
       {error && <p role="alert" className="text-sm font-medium">{error}</p>}
       <div className="flex flex-wrap gap-3">

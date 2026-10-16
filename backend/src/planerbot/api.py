@@ -36,6 +36,7 @@ from planerbot.events import EventService
 from planerbot.network import create_bot
 from planerbot.publications import PublicationRepository
 from planerbot.repository import ChatRepository
+from planerbot.rsvp import CampaignInput, CampaignView, EventDetails, ResponseInput, RsvpService
 from planerbot.telegram import TelegramGateway
 
 
@@ -82,7 +83,9 @@ def create_app(
         gateway = TelegramGateway(telegram_bot)
         access = access or ChatAccess(store, gateway, telegram_bot.id)
         event_service = event_service or EventService(access, store, EventRepository(db))
-        dispatcher = dispatcher or create_dispatcher(store, gateway, event_service)
+        dispatcher = dispatcher or create_dispatcher(
+            store, gateway, event_service, RsvpService(db, access)
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -139,6 +142,52 @@ def create_app(
             return validate_init_data(authorization[4:], token, config.init_data_ttl_seconds)
         except Unauthorized as exc:
             raise HTTPException(401, "Откройте календарь заново через Telegram.") from exc
+
+    def rsvp_service() -> RsvpService:
+        if access is None:
+            raise HTTPException(503, "Бот ещё не настроен.")
+        return RsvpService(db, access)
+
+    @app.post("/api/calendar/visit", status_code=204)
+    async def visit_calendar(user: Annotated[Viewer, Depends(viewer)]) -> Response:
+        await rsvp_service().visit(user)
+        return Response(status_code=204)
+
+    @app.delete("/api/calendar/notifications", status_code=204)
+    async def disable_notifications(user: Annotated[Viewer, Depends(viewer)]) -> Response:
+        await rsvp_service().contact(user.id, False)
+        return Response(status_code=204)
+
+    @app.get("/api/chats/{chat_id}/events/{event_id}", response_model=EventDetails)
+    async def event_details(
+        chat_id: int, event_id: UUID, user: Annotated[Viewer, Depends(viewer)]
+    ) -> EventDetails:
+        return await rsvp_service().detail(user, chat_id, event_id)
+
+    @app.put("/api/chats/{chat_id}/events/{event_id}/response", response_model=EventDetails)
+    async def respond_event(
+        chat_id: int, event_id: UUID, data: ResponseInput, user: Annotated[Viewer, Depends(viewer)]
+    ) -> EventDetails:
+        return await rsvp_service().detail(user, chat_id, event_id, data.answer)
+
+    @app.post("/api/chats/{chat_id}/events/{event_id}/campaigns", response_model=CampaignView)
+    async def send_campaign(
+        chat_id: int,
+        event_id: UUID,
+        data: CampaignInput,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+        user: Annotated[Viewer, Depends(viewer)],
+    ) -> CampaignView:
+        return await rsvp_service().campaign(user, chat_id, event_id, key, data)
+
+    @app.get(
+        "/api/chats/{chat_id}/events/{event_id}/campaigns/{campaign_id}",
+        response_model=CampaignView,
+    )
+    async def campaign_status(
+        chat_id: int, event_id: UUID, campaign_id: UUID, user: Annotated[Viewer, Depends(viewer)]
+    ) -> CampaignView:
+        return await rsvp_service().campaign_status(user, chat_id, event_id, campaign_id)
 
     @app.get("/health/live")
     async def live() -> dict[str, str]:

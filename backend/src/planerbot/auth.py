@@ -16,6 +16,7 @@ class Viewer(BaseModel):
 
     id: int = Field(gt=0, le=2**52 - 1)
     first_name: str = Field(min_length=1, max_length=256)
+    allows_write_to_pm: bool = Field(default=False, exclude=True)
 
 
 def validate_init_data(raw: str, token: str, ttl: int, *, now: int | None = None) -> Viewer:

@@ -22,6 +22,7 @@ it('creates in the selected chat and enabled topic, passes place and preserves a
   render(<EventForm chats={chats} raw="signed" onSaved={saved} onClose={vi.fn()} />);
   expect(screen.queryByRole('option', { name: 'Архив' })).not.toBeInTheDocument();
   await fill();
+  await userEvent.click(screen.getByRole('checkbox', { name: /Отправить событие в личку/ }));
   await userEvent.selectOptions(screen.getByLabelText('Чат'), chats[1].id);
   await userEvent.selectOptions(screen.getByLabelText('Тема'), '20');
   await userEvent.type(screen.getByLabelText('Теги через пробел'), '#встреча #клуб');
@@ -31,7 +32,7 @@ it('creates in the selected chat and enabled topic, passes place and preserves a
   await userEvent.click(screen.getByRole('button', { name: 'Создать и опубликовать' }));
   await waitFor(() => expect(saved).toHaveBeenCalledWith(event));
   expect(vi.mocked(createEvent).mock.calls[0][3]).toBe(vi.mocked(createEvent).mock.calls[1][3]);
-  expect(createEvent).toHaveBeenCalledWith('signed', chats[1].id, expect.objectContaining({ topic_id: 20, place: 'Кафе', place_pending: false, tags: ['#встреча', '#клуб'] }), expect.any(String));
+  expect(createEvent).toHaveBeenCalledWith('signed', chats[1].id, expect.objectContaining({ topic_id: 20, place: 'Кафе', place_pending: false, tags: ['#встреча', '#клуб'], notify_members: true }), expect.any(String));
 });
 
 it('freezes an uncertain draft and retries exactly the same payload after a lost response', async () => {

@@ -1,13 +1,15 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { ApiFailure, loadChats, loadEvents, createEvent, editEvent, eventAction, configureChat, errorText } from './index';
 import type { CalendarEvent, EventDraft } from './index';
+import { campaignStatus, disablePersonalMessages, loadEventDetails, respondEvent, sendCampaign } from './index';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
 it('loads paginated authorized chats with identity only in the header', async () => {
   const fetch = vi.fn()
     .mockResolvedValueOnce(Response.json({ chats: [{ id: '-2', title: 'А', can_manage: false, topics: [] }], next_cursor: '-2' }))
-    .mockResolvedValueOnce(Response.json({ chats: [], next_cursor: null }));
+    .mockResolvedValueOnce(Response.json({ chats: [], next_cursor: null }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
   vi.stubGlobal('fetch', fetch);
   const result = await loadChats('signed-user-data', new AbortController().signal);
   expect(result).toHaveLength(1);
@@ -27,9 +29,32 @@ it('propagates cancellation', async () => {
   await expect(loadChats('signed', new AbortController().signal)).rejects.toHaveProperty('name', 'AbortError');
 });
 
-const draft: EventDraft = { title: 'Встреча', topic_id: 10, start_date: '2026-10-20', place_pending: true, description: '', meeting_format: 'offline', place: '', address: '', map_url: '', online_url: '' };
+it('registers a calendar visit and reports its rejection', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(Response.json({ chats: [], next_cursor: null })).mockResolvedValueOnce(Response.json({ detail: 'Нет доступа' }, { status: 403 }));
+  vi.stubGlobal('fetch', fetch);
+  await expect(loadChats('signed', new AbortController().signal)).rejects.toHaveProperty('status', 403);
+});
+
+it('uses RSVP detail, response, campaign and opt-out contracts', async () => {
+  const fetch = vi.fn().mockImplementation((request: Request) => Promise.resolve(request.method === 'DELETE' ? new Response(null, { status: 204 }) : Response.json({ event, counts: null, personal_messages_enabled: false, id: event.id, statuses: {} })));
+  vi.stubGlobal('fetch', fetch);
+  await loadEventDetails('signed', event.chat_id, event.id);
+  await respondEvent('signed', event, 'yes');
+  await sendCampaign('signed', event, 'unanswered', 'Ответьте', event.id);
+  await campaignStatus('signed', event, event.id);
+  await disablePersonalMessages('signed');
+  expect((fetch.mock.calls[0][0] as Request).url).toContain(`/events/${event.id}`);
+  expect(await (fetch.mock.calls[1][0] as Request).json()).toEqual({ answer: 'yes' });
+  expect((fetch.mock.calls[2][0] as Request).headers.get('Idempotency-Key')).toBe(event.id);
+  expect(await (fetch.mock.calls[2][0] as Request).json()).toEqual({ audience: 'unanswered', text: 'Ответьте' });
+  expect((fetch.mock.calls[4][0] as Request).method).toBe('DELETE');
+  fetch.mockResolvedValue(Response.json({ detail: 'Нет доступа' }, { status: 403 }));
+  await expect(disablePersonalMessages('signed')).rejects.toHaveProperty('status', 403);
+});
+
+const draft: EventDraft = { title: 'Встреча', topic_id: 10, start_date: '2026-10-20', place_pending: true, description: '', meeting_format: 'offline', place: '', address: '', map_url: '', online_url: '', notify_members: false };
 const settings = { version: 1, timezone: 'UTC', event_tag: '#event', enabled_topic_ids: [], creation_policy: 'admins' as const, confirmation_required: false };
-const event: CalendarEvent = { id: '00000000-0000-4000-8000-000000000001', chat_id: '-100100', chat_title: 'А', topic_title: 'Встречи', data: draft, timezone: 'UTC', starts_at: '2026-10-20T00:00:00Z', ends_at: null, version: 1, status: 'active', source: 'form', source_message_id: null, publication_status: 'pending', can_manage: true };
+const event: CalendarEvent = { id: '00000000-0000-4000-8000-000000000001', chat_id: '-100100', chat_title: 'А', topic_title: 'Встречи', data: draft, timezone: 'UTC', starts_at: '2026-10-20T00:00:00Z', ends_at: null, version: 1, status: 'active', source: 'form', source_message_id: null, publication_status: 'pending', can_manage: true, my_response: 'unanswered' };
 
 it('uses generated HTTP routes, typed bodies, versions and idempotency keys', async () => {
   const fetch = vi.fn().mockImplementation((request: Request) => {

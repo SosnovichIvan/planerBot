@@ -1,6 +1,7 @@
 """Exercise upgrade from populated 0001. This command may touch only planerbot_test."""
 
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -45,12 +46,54 @@ async def verify() -> None:
         ).one()
         assert tuple(row) == ("UTC", "#событие", 1)
         assert await connection.scalar(text("SELECT enabled FROM topics WHERE chat_id=-999"))
+        assert (
+            await connection.scalar(
+                text(
+                    "SELECT message_id FROM publications "
+                    "WHERE event_id='00000000-0000-4000-8000-000000000099'"
+                )
+            )
+            == 7
+        )
+        assert (
+            await connection.scalar(text("SELECT payload->>'title' FROM events WHERE chat_id=-999"))
+            == "Existing event"
+        )
+        assert await connection.scalar(text("SELECT count(*) FROM calendar_participants")) == 0
+    await engine.dispose()
+
+
+async def seed_event() -> None:
+    engine = create_async_engine(url)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("""
+            INSERT INTO events (id,chat_id,topic_id,creator_id,editor_id,payload,fingerprint,
+                timezone,local_date,starts_at,version,status,source,source_update_id)
+            VALUES ('00000000-0000-4000-8000-000000000099',-999,1,42,42,
+                CAST(:payload AS jsonb),
+                'migration-fixture','UTC','2026-10-20','2026-10-20T00:00:00Z',1,'active','form',0)
+        """),
+            {
+                "payload": json.dumps(
+                    {"title": "Existing event", "topic_id": 1, "start_date": "2026-10-20"}
+                )
+            },
+        )
+        await connection.execute(
+            text("""
+            INSERT INTO publications (event_id,status,desired_version,message_id)
+            VALUES ('00000000-0000-4000-8000-000000000099','published',1,7)
+        """)
+        )
     await engine.dispose()
 
 
 alembic("downgrade", "0001")
 asyncio.run(seed())
+alembic("upgrade", "0002")
+asyncio.run(seed_event())
 alembic("upgrade", "head")
 asyncio.run(verify())
 alembic("check")
-print("Populated 0001 -> 0002 preserved chat/topic registrations and added valid defaults")
+print("Populated 0001 -> 0002 -> 0003 preserved chats, topics, events and publications")
