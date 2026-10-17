@@ -72,6 +72,9 @@ Telegram. Браузерного обхода авторизации и демо
 
 ## Проверки
 
+Browser-сценарии Cypress, их запуск без токена/БД и границы stub-проверок описаны
+в [testing.md](testing.md). Полный контракт — [current-behavior.md](current-behavior.md).
+
 ```sh
 docker compose exec -T db createdb -U planerbot planerbot_test
 DATABASE_URL=postgresql+asyncpg://planerbot:local-development@localhost:55432/planerbot_test .venv/bin/alembic upgrade head
