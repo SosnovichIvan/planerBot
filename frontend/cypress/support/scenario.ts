@@ -41,7 +41,9 @@ export function scenario(values: Partial<Scenario> = {}): Scenario {
     if (req.method === 'DELETE' && path === '/api/calendar/notifications') { state.contact = false; send('', 204); return; }
     if (req.method === 'GET' && path === '/api/events') {
       const start = url.searchParams.get('start')!; const end = url.searchParams.get('end')!;
-      send({ events: state.events.filter((event) => (!url.searchParams.has('chat_id') || event.chat_id === url.searchParams.get('chat_id')) && event.data.start_date >= start && event.data.start_date < end), has_more: state.more }); return;
+      const inChat = (event: Event) => !url.searchParams.has('chat_id') || event.chat_id === url.searchParams.get('chat_id');
+      send({ events: state.events.filter((event) => event.status !== 'cancelled' && inChat(event) && event.data.start_date >= start && event.data.start_date < end), has_more: state.more,
+        removals: state.events.filter(event => event.status === 'cancelled' && event.can_manage && inChat(event) && event.publication_status !== 'published'), has_more_removals: false }); return;
     }
     const route = /^\/api\/chats\/(-\d+)\/(.+)$/.exec(path);
     if (!route) throw new Error(`Unexpected API route: ${req.method} ${path}`);
@@ -67,7 +69,7 @@ export function scenario(values: Partial<Scenario> = {}): Scenario {
     if (command === 'response' && req.method === 'PUT') { event.my_response = req.body.answer as Answer; send(details()); return; }
     if (command === 'campaigns' && req.method === 'POST') { send({ id: '00000000-0000-4000-8000-000000000009', statuses: {} }); return; }
     if (command?.startsWith('campaigns/') && req.method === 'GET') { send({ id: '00000000-0000-4000-8000-000000000009', statuses: state.campaignStatuses }); return; }
-    if (command === 'cancel' || command === 'approve') { event.status = command === 'cancel' ? 'cancelled' : 'active'; event.version++; send(event); return; }
+    if (command === 'cancel' || command === 'approve') { event.status = command === 'cancel' ? 'cancelled' : 'active'; if (command === 'cancel') event.publication_status = 'pending'; event.version++; send(event); return; }
     if (command === 'retry') { event.publication_status = 'published'; send('', 204); return; }
     throw new Error(`Unexpected API route: ${req.method} ${path}`);
   }).as('api');

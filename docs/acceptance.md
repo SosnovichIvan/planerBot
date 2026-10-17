@@ -34,7 +34,7 @@
 | FORM-08 | Включить уведомление о правке | Отдельное подтверждение; отказ не отправляет PUT, принятие передаёт notify_members=true | event-form.cy.ts |
 | FORM-09 | Есть управляемый и неуправляемый чаты / отключённая тема | Создание предлагает только разрешённые назначения | event-form.cy.ts |
 | RSVP-01 | До ответа, yes, no, затем reset; обе роли | counts скрыты до/после сброса, каждый запрос передаёт нужный answer | rsvp-messages.cy.ts |
-| RSVP-02 | Событие cancelled | Нет кнопок голосования, объяснён статус | rsvp-messages.cy.ts |
+| RSVP-02 | Прямая ссылка на событие cancelled | Нет кнопок голосования, объяснён статус; в повестке встречи нет | rsvp-messages.cy.ts |
 | RSVP-03 | PUT ответа 409, затем успех | Ошибка не раскрывает counts, повтор доступен | rsvp-messages.cy.ts |
 | MSG-01 | Администратор ответил, выбрать каждую из трёх групп | Верхняя форма, верные audience/text, сообщение о постановке в очередь | rsvp-messages.cy.ts |
 | MSG-02 | Неизвестный исход рассылки, повтор | Текст блокируется, повторяет исходный ключ/тело | rsvp-messages.cy.ts |
@@ -53,6 +53,14 @@
 | UI-03 | Telegram видит 440 px внутри окна 667 px | Форма и CTA в доступных 440 px, поля прокручиваются | settings-layout.cy.ts |
 | UI-04 | Навигация selector клавиатурой | Стрелки/End/Enter выбирают, Escape отменяет, фокус возвращается | settings-layout.cy.ts |
 | ACTION-01 | Pending → approve, unknown → retry, active → cancel | Отдельные endpoints, version и подтверждение ack_duplicate_risk | settings-layout.cy.ts |
+| REMOVE-01 | Удалить встречу, дождаться удаления сообщения, обновить страницу | Нет встречи в повестке/сетке; очередь удаления отдельно, затем исчезает | removal-layout.cy.ts |
+| REMOVE-02 | Удаление сообщения отклонено Telegram | Администратор видит ошибку и отдельный retry, новая карточка не создаётся | removal-layout.cy.ts |
+| REMOVE-03 | Отклонить confirm либо API 403 | Без confirm нет мутации; при 403 событие и календарный маркер остаются | removal-layout.cy.ts |
+| REMOVE-04 | Удалить карточку поверх списка событий дня | Закрывается карточка, список дня обновляется без удалённой встречи | removal-layout.cy.ts |
+| UI-05 | 18 чатов, открыть селект, End/Home на четырёх размерах | Первый/последний пункты видны целиком, шапка не прокручивается, заголовок без focus-рамки | removal-layout.cy.ts |
+| UI-06 | Две темы × четыре viewport; календарь, создание/правка, список дня, селекты, дата/время, карточка, рассылка, настройки | Нет горизонтального overflow, header/footer и выбранное время доступны; сохранены viewport PNG для визуальной проверки | removal-layout.cy.ts |
+| UI-07 | Шрифт 20 px и prefers-reduced-motion на 375×667 | Крестик ровно 44×44, действия/последнее поле доступны, переходы отключены | removal-layout.cy.ts |
+| UI-08 | Выбрать 31 октября и 23:59 на четырёх viewport | Нижние дата/часы/минуты доступны; выбранные значения переданы в форму, footer/header видны | removal-layout.cy.ts |
 
 ## Серверные инварианты: pytest + PostgreSQL, не Cypress stubs
 
@@ -65,6 +73,7 @@
 | Публикации | Lease, retry/unknown, права перед отправкой, целевая тема, неизвестная отправка | test_publications.py, test_lifecycle.py |
 | RSVP и рассылки | Реальное скрытие counts, регистрация аудитории, согласие, snapshots/повторы, смена ответа/выход | test_rsvp.py |
 | Правки и личные просмотры | Независимые seen, накопленные diff, no-op, RSVP сохраняется, явная очередь | test_event_updates.py |
+| Удаление | Снятие из календаря до лимита 200, отдельные задачи только администраторам, удаление исходного/бот-сообщения, повтор/not-found/48h/unknown, гонка отправки, сохранность RSVP, SQL-планы и batch-backfill | test_event_removals.py, test_event_api.py |
 | Сеть/выпуск | Proxy без fallback, env validation, release guards, backup/restore в изолированном smoke | test_network.py, test_deployment.py, deploy/smoke-test.sh |
 | Upgrade | Пустая и заполненная схема, сохранность событий/публикаций/RSVP | scripts/check_migrations.py |
 

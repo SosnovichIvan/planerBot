@@ -65,9 +65,24 @@ class TelegramGateway:
         except TelegramAPIError as exc:
             raise DeliveryRejected from exc
 
-    async def send_card(self, event: EventView, message_id: int | None) -> int:
+    async def send_card(self, event: EventView, message_id: int | None) -> int | None:
+        if event.status == "cancelled":
+            if message_id is None:
+                return None  # Cancelled before publication; never create a new card.
+            try:
+                await self.bot.delete_message(
+                    chat_id=int(event.chat_id), message_id=message_id, request_timeout=10
+                )
+            except TelegramBadRequest as exc:
+                if "message to delete not found" not in exc.message.lower():
+                    raise DeliveryRejected from exc
+            except (TimeoutError, TelegramNetworkError, TelegramServerError) as exc:
+                raise DeliveryUnknown from exc
+            except TelegramAPIError as exc:
+                raise DeliveryRejected from exc
+            return message_id
         data = event.data
-        heading = "Отменено" if event.status == "cancelled" else "Событие"
+        heading = "Событие"
         when = f"{data.start_date:%d.%m.%Y} · {data.start_time or 'Весь день'} ({event.timezone})"
         if data.end_time:
             when += f" — {data.end_date or data.start_date} {data.end_time}"

@@ -8,7 +8,7 @@ import { event as calendarEvent } from './ui/fixtures.test-data';
 import { selectOption } from '../../shared/ui/controls.test-support';
 
 vi.mock('../../shared/api', async (original) => ({
-  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false }), loadEventDetails: vi.fn(), respondEvent: vi.fn(),
+  ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false, has_more_removals: false }), loadEventDetails: vi.fn(), respondEvent: vi.fn(),
 }));
 
 const chats = [
@@ -20,7 +20,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
   vi.mocked(loadChats).mockReset();
-  vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false });
+  vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false, has_more_removals: false });
   vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false });
   vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
@@ -47,7 +47,7 @@ it('opens a list for a multi-event day, then a card, and refreshes personal mark
   const day = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-20`;
   const first = { ...calendarEvent, data: { ...calendarEvent.data, start_date: day, end_date: day } };
   vi.mocked(loadChats).mockResolvedValue(chats);
-  vi.mocked(loadEvents).mockResolvedValue({ events: [first, { ...first, id: 'other', my_response: 'yes', data: { ...first.data, title: 'Другая встреча' } }], has_more: false });
+  vi.mocked(loadEvents).mockResolvedValue({ events: [first, { ...first, id: 'other', my_response: 'yes', data: { ...first.data, title: 'Другая встреча' } }], has_more: false, has_more_removals: false });
   render(<CalendarPage />);
   const trigger = await screen.findByRole('button', { name: '20, событий: 2' });
   expect(trigger).toHaveAccessibleDescription('Нужен ваш ответ');
@@ -74,7 +74,7 @@ it('opens only events of the clicked day and navigates to their Telegram message
   const prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
   const event = { ...calendarEvent, data: { ...calendarEvent.data, start_date: `${prefix}-20`, end_date: `${prefix}-20` } };
   vi.mocked(loadChats).mockResolvedValue(chats);
-  vi.mocked(loadEvents).mockResolvedValue({ events: [event, { ...event, id: 'another', data: { ...event.data, title: 'Другой день', start_date: `${prefix}-21`, end_date: `${prefix}-21` } }], has_more: false });
+  vi.mocked(loadEvents).mockResolvedValue({ events: [event, { ...event, id: 'another', data: { ...event.data, title: 'Другой день', start_date: `${prefix}-21`, end_date: `${prefix}-21` } }], has_more: false, has_more_removals: false });
   const open = vi.spyOn(telegram, 'openTelegramMessage').mockReturnValue(true);
   render(<CalendarPage />);
   await userEvent.click(await screen.findByRole('button', { name: '20, событий: 1' }));
@@ -87,11 +87,11 @@ it('opens only events of the clicked day and navigates to their Telegram message
   expect(open).toHaveBeenCalledWith(event.message_url);
   await userEvent.click(within(dialog).getByRole('button', { name: 'Закрыть окно' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  let finish!: (data: { events: typeof event[]; has_more: boolean }) => void;
+  let finish!: (data: Awaited<ReturnType<typeof loadEvents>>) => void;
   vi.mocked(loadEvents).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   await selectOption('Чат', 'Книжный клуб');
   expect(screen.queryByRole('button', { name: '20, событий: 1' })).not.toBeInTheDocument();
-  await act(() => finish({ events: [], has_more: false }));
+  await act(() => finish({ events: [], has_more: false, has_more_removals: false }));
 });
 
 it('explains the Telegram entry point and does not request data outside Telegram', () => {

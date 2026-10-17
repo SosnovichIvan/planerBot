@@ -22,7 +22,7 @@ class DeliveryUnknown(Exception):
 
 
 class PublicationGateway(Protocol):
-    async def send_card(self, event: EventView, message_id: int | None) -> int: ...
+    async def send_card(self, event: EventView, message_id: int | None) -> int | None: ...
 
 
 @dataclass(frozen=True)
@@ -62,7 +62,10 @@ class PublicationRepository:
             lease = uuid4()
             publication.status, publication.lease, publication.claimed_at = "sending", lease, now
             view = await EventRepository.read(session, event.chat_id, event.id)
-            return DeliveryJob(view, event.editor_id, lease, publication.message_id)
+            message_id = publication.message_id
+            if event.source == "message":
+                message_id = event.source_message_id
+            return DeliveryJob(view, event.editor_id, lease, message_id)
 
     async def finish(self, job: DeliveryJob, state: str, message_id: int | None = None) -> None:
         async with self.sessions.begin() as session:
@@ -95,6 +98,18 @@ class PublicationRepository:
             )
             if publication is None:
                 raise MissingEvent
+            event = await session.get(Event, event_id)
+            assert event is not None
+            if (
+                event.status == "cancelled"
+                and publication.status == "unknown"
+                and publication.message_id is None
+                and event.source != "message"
+            ):
+                raise Conflict(
+                    "ID отправленного сообщения неизвестен. Проверьте чат вручную: "
+                    "автоматическое удаление невозможно."
+                )
             if publication.status == "unknown" and not acknowledge:
                 raise Conflict("Отправка могла состояться. Подтвердите риск дубликата.")
             if publication.status not in {"unknown", "failed"}:
@@ -114,7 +129,7 @@ class Delivery:
             return False
         try:
             target = await self.access.authorize(job.editor_id, int(job.event.chat_id), manage=True)
-            if not any(
+            if job.event.status != "cancelled" and not any(
                 t.thread_id == job.event.data.topic_id and t.enabled for t in target.chat.topics
             ):
                 raise InvalidEvent("Тема выключена")

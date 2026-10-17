@@ -1,9 +1,12 @@
-import { useId, useRef, useState } from 'react';
+import { Button } from '../../../shared/ui/button';
+import { Field, Input, Checkbox, TextArea } from '../../../shared/ui/field';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Modal } from '../../../shared/ui/modal';
 import { Select } from '../../../shared/ui/select';
 import { DateTimeField } from '../../../shared/ui/date-time-field';
 import { ApiFailure, createEvent, editEvent, errorText } from '../../../shared/api';
 import type { CalendarEvent, Chat, EventDraft } from '../../../shared/api';
+import { revealControl } from '../../../shared/lib/scroll';
 
 export function EventForm({ chats, raw, event, initialChatId, initialTopicId, onSaved, onClose }: {
   chats: Chat[]; raw: string; event?: CalendarEvent;
@@ -19,6 +22,13 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState('');
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error && errorRef.current?.parentElement) {
+      errorRef.current.focus({ preventScroll: true });
+      revealControl(errorRef.current, errorRef.current.parentElement);
+    }
+  }, [error]);
   const [notice, setNotice] = useState('');
   const [allDay, setAllDay] = useState(!!event && !event.data.start_time);
   const [confirmNotify, setConfirmNotify] = useState(false);
@@ -83,40 +93,40 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
     {!topics.length && <p className="mt-4 text-sm" role="status">Нет доступных тем для публикации. Включите тему в настройках чата и откройте форму заново.</p>}
     {initialTopicId && !topicId && topics.length > 0 && <p className="mt-4 text-sm" role="status">Исходная тема недоступна. Выберите другую включённую тему.</p>}
       <fieldset disabled={busy || uncertain} className="space-y-4 disabled:opacity-70">
-        <label className="form-label">Чат<Select label="Чат" value={chatId} disabled={!!event} onChange={(value) => {
+        <Field>Чат<Select label="Чат" value={chatId} disabled={!!event} onChange={(value) => {
           dirty.current = true; setChatId(value);
           setTopicId(manageable.find((c) => c.id === value)!.topics.find((t) => t.enabled !== false)?.id ?? '');
-        }} options={manageable.map((c) => ({ value: c.id, label: c.title }))} /></label>
-        <label className="form-label">Тема<Select label="Тема" value={topicId} disabled={!!event} onChange={(value) => { dirty.current = true; setTopicId(value); }} options={[{ value: '', label: 'Выберите тему', disabled: true }, ...topics.map((t) => ({ value: t.id, label: t.title }))]} /></label>
+        }} options={manageable.map((c) => ({ value: c.id, label: c.title }))} /></Field>
+        <Field>Тема<Select label="Тема" value={topicId} disabled={!!event} onChange={(value) => { dirty.current = true; setTopicId(value); }} options={[{ value: '', label: 'Выберите тему', disabled: true }, ...topics.map((t) => ({ value: t.id, label: t.title }))]} /></Field>
         {event && <p className="text-xs text-muted">Для переноса в другую тему создайте новое событие и отмените прежнее.</p>}
-        <label className="form-label">Название<input className="field" name="title" required maxLength={120} defaultValue={data?.title} /></label>
+        <Field>Название<Input name="title" required maxLength={120} defaultValue={data?.title} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="form-label">Дата начала<DateTimeField label="Дата начала" type="date" name="start_date" required defaultValue={data?.start_date} onChange={() => { dirty.current = true; }} /></label>
-          <label className="form-label">Время начала<DateTimeField label="Время начала" type="time" name="start_time" disabled={allDay} defaultValue={data?.start_time ?? ''} onChange={() => { dirty.current = true; }} /></label>
-          <label className="form-label">Дата окончания<DateTimeField label="Дата окончания" type="date" name="end_date" defaultValue={data?.end_date ?? ''} onChange={() => { dirty.current = true; }} /></label>
-          <label className="form-label">Время окончания<DateTimeField label="Время окончания" type="time" name="end_time" disabled={allDay} defaultValue={data?.end_time ?? ''} onChange={() => { dirty.current = true; }} /></label>
+          <Field>Дата начала<DateTimeField label="Дата начала" type="date" name="start_date" required defaultValue={data?.start_date} onChange={() => { dirty.current = true; }} /></Field>
+          <Field>Время начала<DateTimeField label="Время начала" type="time" name="start_time" disabled={allDay} defaultValue={data?.start_time ?? ''} onChange={() => { dirty.current = true; }} /></Field>
+          <Field>Дата окончания<DateTimeField label="Дата окончания" type="date" name="end_date" defaultValue={data?.end_date ?? ''} onChange={() => { dirty.current = true; }} /></Field>
+          <Field>Время окончания<DateTimeField label="Время окончания" type="time" name="end_time" disabled={allDay} defaultValue={data?.end_time ?? ''} onChange={() => { dirty.current = true; }} /></Field>
         </div>
-        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />Весь день</label>
-        <label className="form-label">Формат встречи<Select label="Формат встречи" name="meeting_format" defaultValue={data?.meeting_format ?? 'offline'} onChange={() => { dirty.current = true; }} options={[{ value: 'offline', label: 'Офлайн' }, { value: 'online', label: 'Онлайн' }, { value: 'hybrid', label: 'Гибридная' }]} /></label>
-        <label className="form-label">Место встречи<input className="field" name="place" maxLength={120} defaultValue={data?.place} /></label>
-        <label className="form-label">Адрес<input className="field" name="address" maxLength={300} defaultValue={data?.address} /></label>
-        <label className="form-label">Ссылка на карту<input className="field" type="url" name="map_url" maxLength={400} defaultValue={data?.map_url} /></label>
-        <label className="form-label">Ссылка подключения<input className="field" type="url" name="online_url" maxLength={400} defaultValue={data?.online_url} /></label>
-        <label className="form-label">Описание<textarea className="field min-h-24" name="description" maxLength={1200} defaultValue={data?.description} /></label>
-        <label className="form-label">Теги через пробел<input className="field" name="tags" defaultValue={data?.tags?.join(' ')} placeholder="#встреча #команда" /></label>
-        <label className="form-label flex items-start gap-3"><input className="mt-1 size-5 shrink-0" type="checkbox" name="notify_members" />{event ? 'Уведомить участников об изменениях' : 'Отправить событие в личку участникам календаря, разрешившим сообщения'}</label>
+        <label className="flex min-h-11 items-center gap-3 text-sm"><Checkbox  checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />Весь день</label>
+        <Field>Формат встречи<Select label="Формат встречи" name="meeting_format" defaultValue={data?.meeting_format ?? 'offline'} onChange={() => { dirty.current = true; }} options={[{ value: 'offline', label: 'Офлайн' }, { value: 'online', label: 'Онлайн' }, { value: 'hybrid', label: 'Гибридная' }]} /></Field>
+        <Field>Место встречи<Input name="place" maxLength={120} defaultValue={data?.place} /></Field>
+        <Field>Адрес<Input name="address" maxLength={300} defaultValue={data?.address} /></Field>
+        <Field>Ссылка на карту<Input type="url" name="map_url" maxLength={400} defaultValue={data?.map_url} /></Field>
+        <Field>Ссылка подключения<Input type="url" name="online_url" maxLength={400} defaultValue={data?.online_url} /></Field>
+        <Field>Описание<TextArea className="min-h-24" name="description" maxLength={1200} defaultValue={data?.description} /></Field>
+        <Field>Теги через пробел<Input name="tags" defaultValue={data?.tags?.join(' ')} placeholder="#встреча #команда" /></Field>
+        <Field className="flex items-start gap-3"><Checkbox className="mt-1 size-5 shrink-0"  name="notify_members" />{event ? 'Уведомить участников об изменениях' : 'Отправить событие в личку участникам календаря, разрешившим сообщения'}</Field>
       </fieldset>
-      {error && <p role="alert" className="text-sm font-medium">{error}</p>}
+      {error && <p ref={errorRef} tabIndex={-1} role="alert" className="rounded-xl border border-attention/50 bg-attention/10 p-3 text-sm font-medium text-attention outline-none">{error}</p>}
       {notice && <p role="status" className="text-sm">{notice}</p>}
       </div>
       <div className="event-form-footer">
-        <button className="secondary-button" type="button" disabled={busy} onClick={close}>Отмена</button>
-        <button className="button" type="submit" disabled={busy || !topicId}>{busy ? 'Сохраняем…' : event ? 'Сохранить изменения' : 'Создать и опубликовать'}</button>
+        <Button variant="secondary" type="button" disabled={busy} onClick={close}>Отмена</Button>
+        <Button variant="primary" type="submit" disabled={busy || !topicId}>{busy ? 'Сохраняем…' : event ? 'Сохранить изменения' : 'Создать и опубликовать'}</Button>
       </div>
     </form>
     {confirmNotify && <Modal title="Уведомить об изменениях?" onClose={() => setConfirmNotify(false)} footer={<>
-      <button className="secondary-button" type="button" onClick={() => setConfirmNotify(false)}>Отмена</button>
-      <button className="button" type="button" onClick={() => { notifyApproved.current = true; setConfirmNotify(false); formRef.current?.requestSubmit(); }}>Сохранить и уведомить</button>
+      <Button variant="secondary" type="button" onClick={() => setConfirmNotify(false)}>Отмена</Button>
+      <Button variant="primary" type="button" onClick={() => { notifyApproved.current = true; setConfirmNotify(false); formRef.current?.requestSubmit(); }}>Сохранить и уведомить</Button>
     </>}><p className="text-sm text-muted">Личные сообщения получат только участники календаря этого чата, разрешившие сообщения боту. Очередь не означает доставку всем участникам Telegram-чата.</p></Modal>}
   </Modal>;
 }

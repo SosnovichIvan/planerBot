@@ -181,3 +181,5 @@ class EventView(BaseModel):
 class EventsView(BaseModel):
     events: list[EventView]
     has_more: bool
+    removals: list[EventView] = Field(default_factory=list)
+    has_more_removals: bool = False

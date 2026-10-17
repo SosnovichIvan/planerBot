@@ -1,0 +1,5 @@
+@layer components {
+  .event-form { @apply flex min-h-0 w-full flex-col; }
+  .event-form-body { @apply min-h-0 flex-1 scroll-py-2 space-y-4 overflow-y-auto overscroll-contain pb-6 pt-1; }
+  .event-form-footer { @apply flex shrink-0 flex-wrap justify-end gap-2 border-t border-line bg-surface py-4 max-[359px]:[&>button]:w-full; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}

@@ -22,7 +22,7 @@ def message_link(chat_id: int, message_id: int | None, topic_id: int = 1) -> str
 
 
 async def enqueue(session: AsyncSession, event: Event) -> None:
-    if event.source == "message":
+    if event.source == "message" and event.status != "cancelled":
         return
     statement = insert(Publication).values(
         event_id=event.id, status="pending", desired_version=event.version
@@ -75,8 +75,17 @@ class EventRepository:
             source=event.source,
             source_message_id=event.source_message_id,
             publication_status=publication,
-            message_url=message_link(
-                event.chat_id, published_id or event.source_message_id, event.topic_id
+            message_url=None
+            if event.status == "cancelled" and publication == "published"
+            else message_link(
+                event.chat_id,
+                published_id
+                or (
+                    event.source_message_id
+                    if event.source == "message" or event.status != "cancelled"
+                    else None
+                ),
+                event.topic_id,
             ),
         )
 
@@ -253,6 +262,7 @@ class EventRepository:
             .join(Topic, and_(Topic.chat_id == Event.chat_id, Topic.thread_id == Event.topic_id))
             .where(
                 Event.chat_id.in_(chat_ids),
+                Event.status != "cancelled",
                 or_(
                     Event.local_date >= start,
                     local_end > start,
@@ -310,4 +320,55 @@ class EventRepository:
                 )
                 for e, chat_title, topic_title, publication, published_id in joined
             ]
-            return EventsView(events=views, has_more=len(rows) > 200)
+            # Cleanup is an administrative queue, never calendar/RSVP content.
+            # Keep it independent of the selected month so old failures remain actionable.
+            removals = (
+                await session.execute(
+                    select(
+                        Event, Chat.title, Topic.title, Publication.status, Publication.message_id
+                    )
+                    .join(Chat, Chat.id == Event.chat_id)
+                    .join(
+                        Topic,
+                        and_(Topic.chat_id == Event.chat_id, Topic.thread_id == Event.topic_id),
+                    )
+                    .join(Publication, Publication.event_id == Event.id)
+                    .where(
+                        Event.chat_id.in_(admin_ids),
+                        Event.status == "cancelled",
+                        Publication.status != "published",
+                    )
+                    .order_by(Event.id)
+                    .limit(51)
+                )
+            ).all()
+            return EventsView(
+                events=views,
+                has_more=len(rows) > 200,
+                removals=[
+                    EventView(
+                        id=e.id,
+                        chat_id=str(e.chat_id),
+                        chat_title=chat_title,
+                        topic_title=topic_title,
+                        data=EventInput.model_validate(e.payload),
+                        timezone=e.timezone,
+                        starts_at=e.starts_at,
+                        ends_at=e.ends_at,
+                        version=e.version,
+                        status=e.status,
+                        source=e.source,
+                        source_message_id=e.source_message_id,
+                        publication_status=publication,
+                        message_url=message_link(
+                            e.chat_id,
+                            published_id
+                            or (e.source_message_id if e.source == "message" else None),
+                            e.topic_id,
+                        ),
+                        can_manage=True,
+                    )
+                    for e, chat_title, topic_title, publication, published_id in removals[:50]
+                ],
+                has_more_removals=len(removals) > 50,
+            )
