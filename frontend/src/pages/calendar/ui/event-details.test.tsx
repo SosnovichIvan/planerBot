@@ -1,13 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, eventAction, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
 import * as telegram from '../../../shared/telegram';
 import type { EventDetails as Details } from '../../../shared/api';
 import { EventDetails } from './event-details';
 import { chats, event } from './fixtures.test-data';
 
-vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), editEvent: vi.fn(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
+vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), eventAction: vi.fn(), editEvent: vi.fn(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
 const details = (admin = true, answered = false): Details => ({ event: { ...event, can_manage: admin, my_response: answered ? 'yes' : 'unanswered' }, counts: answered ? { yes: 1, no: 1, unanswered: 2 } : null, personal_messages_enabled: false });
 function show(onClose = vi.fn(), onChanged = vi.fn()) { return render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={onClose} onChanged={onChanged} />); }
 
@@ -18,6 +18,23 @@ beforeEach(() => {
   vi.mocked(sendCampaign).mockReset().mockResolvedValue({ id: 'campaign', statuses: {} });
   vi.mocked(campaignStatus).mockReset().mockResolvedValue({ id: 'campaign', statuses: { sent: 1, pending: 2, unknown: 1 } });
   vi.mocked(disablePersonalMessages).mockReset().mockResolvedValue();
+  vi.mocked(eventAction).mockReset().mockResolvedValue();
+});
+
+it('requires confirmation to remove from the card, keeps it on error, closes after API success', async () => {
+  const close = vi.fn(); const changed = vi.fn();
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  show(close, changed);
+  await userEvent.click(await screen.findByRole('button', { name: 'Удалить событие' }));
+  expect(eventAction).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);
+  vi.mocked(eventAction).mockRejectedValueOnce(new ApiFailure(403));
+  await userEvent.click(screen.getByRole('button', { name: 'Удалить событие' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Нет прав'); expect(close).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Удалить событие' }));
+  await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  expect(changed).toHaveBeenCalledTimes(2);
+  expect(eventAction).toHaveBeenLastCalledWith('signed', expect.objectContaining({ id: event.id }), 'cancel');
 });
 
 it('shows server changes and lets an admin edit through the event card without resetting votes', async () => {

@@ -1,10 +1,14 @@
+import { Field, TextArea } from '../../../shared/ui/field';
+import { Button } from '../../../shared/ui/button';
 import { useEffect, useRef, useState } from 'react';
-import { ApiFailure, campaignStatus, disablePersonalMessages, errorText, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, campaignStatus, disablePersonalMessages, errorText, eventAction, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
 import type { Answer, Campaign, Chat, EventDetails as Details } from '../../../shared/api';
 import { requestPersonalMessages, openTelegramMessage } from '../../../shared/telegram';
 import { Modal } from '../../../shared/ui/modal';
 import { EventForm } from './event-form';
 import { formatDate } from '../../../shared/lib/date';
+import { revealControl } from '../../../shared/lib/scroll';
+import { TextLink } from '../../../shared/ui/text-link';
 
 const labels: Record<Answer, string> = { yes: 'Приду', no: 'Не приду', unanswered: 'Не проголосовали' };
 const deliveryLabels: Record<string, string> = { pending: 'В очереди', sending: 'Отправляется', sent: 'Отправлено', skipped: 'Пропущено', failed: 'Ошибка', unknown: 'Доставка неизвестна' };
@@ -16,6 +20,8 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const [editing, setEditing] = useState(false);
   const [audience, setAudience] = useState<Answer | null>(null);
   const [text, setText] = useState('');
@@ -23,6 +29,12 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
   const [uncertain, setUncertain] = useState(false);
   const lock = useRef(false);
   const submitted = useRef<{ key: string; audience: Answer; text: string } | null>(null);
+  useEffect(() => {
+    for (const element of [notice ? noticeRef.current : null, error ? errorRef.current : null]) {
+      const container = element?.closest<HTMLElement>('.event-form-body, .modal-body');
+      if (element && container) revealControl(element, container);
+    }
+  }, [notice, error, audience]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,7 +62,7 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
   }
   return <Modal title={event?.data.title ?? 'Событие'} busy={busy} onClose={() => { if (!lock.current && (!uncertain || window.confirm('Рассылка могла быть создана. Закрыть без проверки? Повторное создание может отправить сообщения ещё раз.'))) onClose(); }}>
     {state.kind === 'loading' && <p className="mt-5" role="status">Загружаем событие…</p>}
-    {state.kind === 'error' && <div className="mt-5" role="alert"><p>{state.message}</p><button className="secondary-button mt-3" onClick={() => { setState({ kind: 'loading' }); setAttempt((value) => value + 1); }}>Повторить загрузку</button></div>}
+    {state.kind === 'error' && <div className="mt-5" role="alert"><p>{state.message}</p><Button variant="secondary" className="mt-3" onClick={() => { setState({ kind: 'loading' }); setAttempt((value) => value + 1); }}>Повторить загрузку</Button></div>}
     {event && data && <>
       <p className="mt-4 text-sm text-muted">{event.chat_title} · {event.topic_title}</p>
       <p className="mt-3">{formatDate(event.data.start_date)} · {event.data.start_time ?? 'Весь день'} · {event.timezone}</p>
@@ -64,31 +76,35 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
           <dd className="mt-1"><del className="text-muted">{change.before}</del><span aria-label="теперь"> → </span>{change.after}</dd>
         </div>)}</dl>
       </section>}
-      {event.data.online_url && <a className="mt-3 block underline" href={event.data.online_url} target="_blank" rel="noreferrer">Подключиться онлайн</a>}
-      {event.data.map_url && <a className="mt-3 block underline" href={event.data.map_url} target="_blank" rel="noreferrer">Открыть карту</a>}
-      {event.message_url && <a className="mt-3 block underline" href={event.message_url} onClick={(e) => { if (openTelegramMessage(event.message_url!)) e.preventDefault(); }}>Сообщение в Telegram</a>}
-      {event.can_manage && event.status !== 'cancelled' && chats.some((chat) => chat.id === event.chat_id && chat.can_manage) && <button className="secondary-button mt-4" onClick={() => setEditing(true)}>Редактировать</button>}
+      {event.data.online_url && <TextLink className="mt-3" href={event.data.online_url} target="_blank" rel="noreferrer">Подключиться онлайн</TextLink>}
+      {event.data.map_url && <TextLink className="mt-3" href={event.data.map_url} target="_blank" rel="noreferrer">Открыть карту</TextLink>}
+      {event.message_url && <TextLink className="mt-3" href={event.message_url} onClick={(e) => { if (openTelegramMessage(event.message_url!)) e.preventDefault(); }}>Сообщение в Telegram</TextLink>}
+      {event.can_manage && event.status !== 'cancelled' && <div className="mt-4 flex flex-wrap gap-2">
+      {chats.some((chat) => chat.id === event.chat_id && chat.can_manage) && <Button onClick={() => setEditing(true)}>Редактировать</Button>}
+      <Button variant="danger" disabled={busy} onClick={() => {
+        if (!window.confirm(`Удалить событие «${event.data.title}» из календаря и его сообщение в Telegram? История и ответы сохранятся. Telegram может отказать в удалении старого сообщения.`)) return;
+        void act(async () => { await eventAction(raw, event, 'cancel'); onChanged(); onClose(); });
+      }}>Удалить событие</Button></div>}
       {editing && <EventForm raw={raw} chats={chats} event={event} onClose={() => setEditing(false)} onSaved={(saved, message) => {
         setEditing(false); setNotice(message ?? (saved.version === event.version ? 'Нет изменений.' : 'Изменения сохранены. Статус публикации обновится после обработки очереди.')); setAttempt((value) => value + 1); onChanged();
       }} />}
       {event.status === 'active' ? <>
         <p className={`mt-6 font-semibold ${event.my_response === 'unanswered' ? 'text-attention' : ''}`}>{event.my_response === 'unanswered' ? 'Нужен ваш ответ' : `Ваш ответ: ${labels[event.my_response ?? 'unanswered']}`}</p>
         <div className="mt-3 flex flex-wrap gap-2" aria-label="Ваш ответ">
-          {(['yes', 'no', 'unanswered'] as const).filter((answer) => answer !== 'unanswered' || event.my_response !== 'unanswered').map((answer) => <button key={answer} className="secondary-button aria-pressed:bg-accent aria-pressed:text-white" aria-pressed={(event.my_response ?? 'unanswered') === answer} disabled={busy || uncertain} onClick={() => void act(async () => {
+          {(['yes', 'no', 'unanswered'] as const).filter((answer) => answer !== 'unanswered' || event.my_response !== 'unanswered').map((answer) => <Button variant="secondary" key={answer} className="aria-pressed:bg-accent aria-pressed:text-white" aria-pressed={(event.my_response ?? 'unanswered') === answer} disabled={busy || uncertain} onClick={() => void act(async () => {
             const next = await respondEvent(raw, event, answer); setState({ kind: 'ready', data: next }); setAudience(null); setCampaign(null); submitted.current = null; setText(''); onChanged();
-          })}>{answer === 'unanswered' ? 'Сбросить ответ' : labels[answer]}</button>)}
+          })}>{answer === 'unanswered' ? 'Сбросить ответ' : labels[answer]}</Button>)}
         </div>
       </> : <p className="mt-5 font-semibold">{event.status === 'cancelled' ? 'Событие отменено' : 'Событие ожидает подтверждения'}</p>}
       {!data.counts ? <p className="mt-5 text-sm text-muted">Результаты станут доступны после вашего ответа — это правило действует и для администраторов.</p> : <section className="mt-6" aria-label="Ответы участников календаря">
         <h3 className="font-semibold">Участники календаря</h3>
         <p className="mt-2 text-xs text-muted">Это участники, открывшие календарь, а не полный состав Telegram-чата.</p>
         <div className="mt-3 flex flex-wrap gap-2">{(['yes', 'no', 'unanswered'] as const).map((group) => event.can_manage && event.status === 'active' ?
-          <button className="secondary-button" key={group} disabled={busy || uncertain} onClick={() => { setAudience(group); setCampaign(null); setNotice(''); }}>{labels[group]}: {data.counts![group]}</button> :
+          <Button variant="secondary" key={group} disabled={busy || uncertain} onClick={() => { setAudience(group); setCampaign(null); setNotice(''); }}>{labels[group]}: {data.counts![group]}</Button> :
           <p className="rounded-xl border border-line p-3 text-sm" key={group}>{labels[group]}: {data.counts![group]}</p>)}</div>
       </section>}
-      {audience && event.can_manage && data.counts && <Modal title={`Сообщение: ${labels[audience]}`} closeLabel="Закрыть форму отправки" busy={busy} onClose={closeCampaign}>
-        <p className="mt-4 break-words text-sm text-muted">{event.data.title} · {event.chat_title}</p>
-        <form className="mt-5" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
+      {audience && event.can_manage && data.counts && <Modal title={`Сообщение: ${labels[audience]}`} closeLabel="Закрыть форму отправки" busy={busy} onClose={closeCampaign} fullHeight>
+        <form className="event-form" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
         if (!submitted.current && !window.confirm(`Отправить личное сообщение группе «${labels[audience]}»? Получат только участники календаря с разрешёнными сообщениями.`)) return;
         void act(async () => {
           submitted.current ??= { key: crypto.randomUUID(), audience, text: text.trim() };
@@ -99,27 +115,34 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
           submitted.current = null; setUncertain(false); setAudience(null); setText(''); setNotice('Рассылка поставлена в очередь. Это ещё не подтверждение доставки.');
         });
       }}>
-        <label className="form-label mt-3">Текст сообщения<textarea className="field" required maxLength={1500} value={text} disabled={busy || uncertain} onChange={(e) => setText(e.target.value)} /></label>
+        <div className="event-form-body">
+        <p className="break-words text-sm text-muted">{event.data.title} · {event.chat_title}</p>
+        <Field className="mt-3">Текст сообщения<TextArea required maxLength={1500} value={text} disabled={busy || uncertain} onChange={(e) => setText(e.target.value)} /></Field>
         <p className="mt-2 text-xs text-muted">К сообщению добавится ссылка на событие. Сменившие ответ или вышедшие из чата будут пропущены.</p>
-        <button className="button mt-4" disabled={busy || !text.trim()}>{uncertain ? 'Повторить тот же запрос' : 'Отправить группе'}</button>
-        <button className="secondary-button ml-2 mt-4" type="button" disabled={busy} onClick={closeCampaign}>Отмена</button>
-        {error && <p className="mt-4 text-sm" role="alert">{error}</p>}
+        {error && <p ref={errorRef} className="mt-4 text-sm text-attention" role="alert">{error}</p>}
+        </div>
+        <div className="event-form-footer">
+          <Button disabled={busy} onClick={closeCampaign}>Отмена</Button>
+          <Button variant="primary" type="submit" disabled={busy || !text.trim()}>{uncertain ? 'Повторить тот же запрос' : 'Отправить группе'}</Button>
+        </div>
       </form></Modal>}
       {campaign && <section className="mt-5 text-sm" aria-label="Доставка рассылки">
         {Object.entries(campaign.statuses ?? {}).map(([status, count]) => <p key={status}>{deliveryLabels[status]}: {count}</p>)}
-        <button className="secondary-button mt-3" disabled={busy} onClick={() => void act(async () => { setCampaign(await campaignStatus(raw, event, campaign.id)); })}>Проверить доставку</button>
+        <Button variant="secondary" className="mt-3" disabled={busy} onClick={() => void act(async () => { setCampaign(await campaignStatus(raw, event, campaign.id)); })}>Проверить доставку</Button>
         <p className="mt-2 text-xs text-muted">«Пропущено»: нет разрешения, изменился ответ или доступ. Неизвестный исход автоматически не повторяется.</p>
       </section>}
       <section className="mt-6 border-t border-line pt-4 text-sm" aria-label="Личные уведомления">
         <p>{data.personal_messages_enabled ? 'Личные уведомления включены' : 'Для личных уведомлений разрешите сообщения боту. После /stop включите их снова командой /start в личке.'}</p>
-        <button className="secondary-button mt-3" disabled={busy} onClick={() => void act(async () => {
+        <div className="mt-3 flex flex-wrap gap-2">
+        <Button disabled={busy} onClick={() => void act(async () => {
           if (data.personal_messages_enabled) { await disablePersonalMessages(raw); setState({ kind: 'ready', data: { ...data, personal_messages_enabled: false } }); }
           else { const allowed = await requestPersonalMessages(); setNotice(allowed ? 'Разрешение принято Telegram. Нажмите «Обновить разрешение» или отправьте /start боту в личке.' : 'Разрешение не получено. Можно отправить /start боту в личке.'); }
-        })}>{data.personal_messages_enabled ? 'Отключить уведомления' : 'Разрешить сообщения'}</button>
-        {!data.personal_messages_enabled && <button className="secondary-button ml-2 mt-3" disabled={busy} onClick={() => void act(async () => { setState({ kind: 'ready', data: await loadEventDetails(raw, chatId, eventId) }); })}>Обновить разрешение</button>}
+        })}>{data.personal_messages_enabled ? 'Отключить уведомления' : 'Разрешить сообщения'}</Button>
+        {!data.personal_messages_enabled && <Button disabled={busy} onClick={() => void act(async () => { setState({ kind: 'ready', data: await loadEventDetails(raw, chatId, eventId) }); })}>Обновить разрешение</Button>}
+        </div>
       </section>
     </>}
-    {!audience && error && <p className="mt-4 text-sm" role="alert">{error}</p>}
-    {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
+    {!audience && error && <p ref={errorRef} className="mt-4 text-sm text-attention" role="alert">{error}</p>}
+    {notice && <p ref={noticeRef} className="mt-4 rounded-xl border border-line bg-canvas p-3 text-sm" role="status">{notice}</p>}
   </Modal>;
 }

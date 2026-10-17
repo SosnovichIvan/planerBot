@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "../shared/ui/modal/styles.css";
+@import "../shared/ui/date-time-field/styles.css";
+@import "../pages/calendar/ui/event-form.css";
 
 @theme inline {
   --color-canvas: var(--canvas);
@@ -8,6 +11,7 @@
   --color-line: var(--line);
   --color-accent: var(--accent);
   --color-attention: var(--attention);
+  --color-focus: var(--focus);
 }
 
 :root {
@@ -38,39 +42,8 @@
 }
 
 body { margin: 0; min-width: 320px; padding-top: var(--tg-content-safe-area-inset-top, 0px); padding-bottom: var(--tg-content-safe-area-inset-bottom, 0px); }
-button, select, a { -webkit-tap-highlight-color: transparent; }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-
-@layer components {
-  .modal { @apply fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/60; max-height: calc(var(--tg-viewport-height, 100dvh) - 2rem); }
-  .modal[open] { @apply flex flex-col; }
-  .modal-header { @apply flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-6; }
-  .modal-body { @apply min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 sm:px-6; }
-  .modal-footer { @apply flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-surface p-4 sm:px-6; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-  .modal-full-height { height: min(48rem, calc(var(--tg-viewport-height, 100dvh) - 2rem)); top: max(1rem, calc((var(--tg-viewport-height, 100dvh) - 48rem) / 2)); bottom: auto; margin-block: 0; }
-  .modal-full-height > .modal-body { @apply flex flex-1 overflow-hidden pb-0; }
-  .event-form { @apply flex min-h-0 w-full flex-col; }
-  .event-form-body { @apply min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-6; }
-  .event-form-footer { @apply flex shrink-0 flex-wrap justify-end gap-2 border-t border-line bg-surface py-4; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-  .modal-drawer { @apply mb-0 max-w-3xl rounded-b-none; }
-  .panel { @apply rounded-2xl border border-line bg-surface p-5 sm:p-6; }
-  .button { @apply min-h-11 cursor-pointer rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:opacity-90 active:opacity-80; }
-  .icon-button { @apply inline-flex size-11 min-h-11 min-w-11 max-h-11 max-w-11 shrink-0 cursor-pointer items-center justify-center self-start rounded-xl border border-line p-0 text-2xl hover:bg-canvas active:opacity-70 disabled:opacity-50; flex: 0 0 44px; }
-  .field { @apply mt-2 block min-h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 py-2.5 text-base text-ink shadow-sm transition-colors hover:border-muted disabled:cursor-not-allowed disabled:opacity-50; }
-  .select-trigger { @apply flex items-center justify-between gap-3 text-left; }
-  .select-option { @apply flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-base hover:bg-canvas aria-selected:bg-accent aria-selected:text-white aria-pressed:bg-accent aria-pressed:text-white disabled:cursor-not-allowed disabled:opacity-40; }
-  .picker-day { @apply flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-lg bg-canvas text-sm aria-pressed:bg-accent aria-pressed:text-white disabled:invisible; }
-  .time-column { @apply max-h-56 space-y-1 overflow-y-auto rounded-xl border border-line p-1; }
-  .update-badge { @apply inline-flex rounded-full border border-accent bg-accent/15 px-2 py-0.5 text-xs font-semibold text-ink; }
-  .form-label { @apply block text-sm font-medium; }
-  .secondary-button { @apply min-h-11 cursor-pointer rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-canvas disabled:cursor-wait disabled:opacity-60; }
-  .button:disabled { @apply cursor-wait opacity-60; }
-}
-
-input[type="checkbox"] { accent-color: var(--accent); width: 20px; height: 20px; flex: 0 0 20px; }
-@media (max-width: 639px), (max-height: 500px) {
-  .modal { width: 100%; max-height: calc(var(--tg-viewport-height, 100dvh) - env(safe-area-inset-top, 0px)); border-radius: 20px 20px 0 0; margin-bottom: auto; }
-  .modal-full-height { height: calc(var(--tg-viewport-height, 100dvh) - env(safe-area-inset-top, 0px)); top: env(safe-area-inset-top, 0px); bottom: auto; margin-block: 0; }
-  .modal-drawer { margin-bottom: 0; }
+@layer base {
+  button, a, summary { -webkit-tap-highlight-color: transparent; }
+  :where(button, a, input, textarea, summary, [tabindex]):not([tabindex="-1"]):focus-visible { @apply outline-2 outline-offset-2 outline-focus; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; } }

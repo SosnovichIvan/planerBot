@@ -568,6 +568,13 @@ export interface components {
             events: components["schemas"]["EventView"][];
             /** Has More */
             has_more: boolean;
+            /** Removals */
+            removals?: components["schemas"]["EventView"][];
+            /**
+             * Has More Removals
+             * @default false
+             */
+            has_more_removals: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

@@ -1,13 +1,15 @@
+import { Button } from '../../../shared/ui/button';
+import { Field, Input, Checkbox } from '../../../shared/ui/field';
 import { useRef, useState } from 'react';
 import { configureChat, errorText } from '../../../shared/api';
 import type { Chat } from '../../../shared/api';
+import { Disclosure } from '../../../shared/ui/disclosure';
 
 export function SettingsForm({ chat, raw, onSaved }: { chat: Chat; raw: string; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const lock = useRef(false);
-  return <details className="mt-3">
-    <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Настройки чата</summary>
+  return <Disclosure title="Настройки чата" className="mt-3">
     <form className="space-y-4" onSubmit={async (e) => {
       e.preventDefault(); if (lock.current) return;
       const fields = new FormData(e.currentTarget);
@@ -25,14 +27,14 @@ export function SettingsForm({ chat, raw, onSaved }: { chat: Chat; raw: string; 
       finally { lock.current = false; setBusy(false); }
     }}>
       <fieldset disabled={busy} className="space-y-3">
-        <label className="form-label">Часовой пояс IANA<input className="field" name="timezone" required defaultValue={chat.timezone ?? 'UTC'} /></label>
-        <label className="form-label">Тег события<input className="field" name="event_tag" required maxLength={33} defaultValue={chat.event_tag ?? '#событие'} /></label>
-        <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="confirmation_required" defaultChecked={chat.confirmation_required} />Подтверждать импорт администраторов</label>
+        <Field>Часовой пояс IANA<Input name="timezone" required defaultValue={chat.timezone ?? 'UTC'} /></Field>
+        <Field>Тег события<Input name="event_tag" required maxLength={33} defaultValue={chat.event_tag ?? '#событие'} /></Field>
+        <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox  name="confirmation_required" defaultChecked={chat.confirmation_required} />Подтверждать импорт администраторов</label>
         <p className="text-xs text-muted">Создавать события могут только администраторы.</p>
-        <fieldset><legend className="text-sm font-medium">Включённые темы</legend>{chat.topics.map((topic) => <label className="flex min-h-11 items-center gap-2 text-sm" key={topic.id}><input type="checkbox" name="topic" value={topic.id} defaultChecked={topic.enabled !== false} />{topic.title}</label>)}</fieldset>
+        <fieldset><legend className="text-sm font-medium">Включённые темы</legend>{chat.topics.map((topic) => <label className="flex min-h-11 items-center gap-2 text-sm" key={topic.id}><Checkbox  name="topic" value={topic.id} defaultChecked={topic.enabled !== false} />{topic.title}</label>)}</fieldset>
       </fieldset>
       {error && <p role="alert" className="text-sm">{error}</p>}
-      <button className="button w-full" disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить настройки'}</button>
+      <Button variant="primary" type="submit" className="w-full" disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить настройки'}</Button>
     </form>
-  </details>;
+  </Disclosure>;
 }

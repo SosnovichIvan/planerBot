@@ -149,12 +149,10 @@ async def test_telegram_card_and_error_classification(engine):
     assert kwargs["message_thread_id"] == 10 and "Кафе" in kwargs["text"]
     assert "https://example.test/map" in kwargs["text"]
     assert await gateway.send_card(event, 123) == 123
-    general = event.model_copy(
-        update={"data": draft(topic_id=1, place_pending=True), "status": "cancelled"}
-    )
+    general = event.model_copy(update={"data": draft(topic_id=1, place_pending=True)})
     await gateway.send_card(general, None)
     assert bot.send_message.call_args.kwargs["message_thread_id"] is None
-    assert "Отменено" in bot.send_message.call_args.kwargs["text"]
+    assert "Место уточняется" in bot.send_message.call_args.kwargs["text"]
     method = SendMessage(chat_id=A, text="test")
     for error, expected in [
         (TelegramBadRequest(method=method, message="bad"), DeliveryRejected),
