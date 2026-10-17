@@ -57,8 +57,11 @@ async def test_http_create_update_cancel_and_private_lists(engine):
             )
         ).status_code == 422
         query = "/api/events?start=2026-10-01&end=2026-11-01"
-        assert len((await client.get(query, headers=headers)).json()["events"]) == 1
+        listed = (await client.get(query, headers=headers)).json()
+        assert not listed["events"]
+        assert listed["removals"][0]["id"] == event["id"]
         member = {"Authorization": "tma " + signed(user_id=43)}
+        assert not (await client.get(query, headers=member)).json()["removals"]
         assert (
             await client.post(
                 path,

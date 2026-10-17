@@ -1706,6 +1706,18 @@
           "has_more": {
             "type": "boolean",
             "title": "Has More"
+          },
+          "removals": {
+            "items": {
+              "$ref": "#/components/schemas/EventView"
+            },
+            "type": "array",
+            "title": "Removals"
+          },
+          "has_more_removals": {
+            "type": "boolean",
+            "title": "Has More Removals",
+            "default": false
           }
         },
         "type": "object",

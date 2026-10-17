@@ -14,7 +14,7 @@ describe('Ответы, изменения и личные сообщения', 
     });
   }
   it('RSVP-02 отменённое событие недоступно для голосования', () => {
-    const state = scenario({ events: [{ ...meeting, status: 'cancelled' }] }); visit(state); button('Открыть событие').click();
+    const state = scenario({ events: [{ ...meeting, status: 'cancelled' }] }); visit(state, { raw: `start_param=event_${meeting.chat_id}_${meeting.id.replaceAll('-', '')}` });
     cy.contains('Событие отменено').should('be.visible'); cy.get('[aria-label="Ваш ответ"]').should('not.exist');
   });
   it('RSVP-03 ошибка ответа не показывает результаты, повтор остаётся доступен', () => {

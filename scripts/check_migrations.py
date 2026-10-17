@@ -56,7 +56,12 @@ async def verify() -> None:
             == 7
         )
         assert (
-            await connection.scalar(text("SELECT payload->>'title' FROM events WHERE chat_id=-999"))
+            await connection.scalar(
+                text(
+                    "SELECT payload->>'title' FROM events "
+                    "WHERE id='00000000-0000-4000-8000-000000000099'"
+                )
+            )
             == "Existing event"
         )
         assert await connection.scalar(text("SELECT count(*) FROM calendar_participants")) == 1
@@ -66,6 +71,33 @@ async def verify() -> None:
         )
         assert await connection.scalar(text("SELECT count(*) FROM event_revisions")) == 0
         assert await connection.scalar(text("SELECT count(*) FROM event_seen")) == 0
+        assert (
+            await connection.scalar(
+                text(
+                    "SELECT status FROM publications "
+                    "WHERE event_id='00000000-0000-4000-8000-000000000100'"
+                )
+            )
+            == "pending"
+        )
+        assert (
+            await connection.scalar(
+                text(
+                    "SELECT message_id FROM publications "
+                    "WHERE event_id='00000000-0000-4000-8000-000000000100'"
+                )
+            )
+            == 88
+        )
+        assert (
+            await connection.scalar(
+                text(
+                    "SELECT status FROM publications "
+                    "WHERE event_id='00000000-0000-4000-8000-000000000101'"
+                )
+            )
+            == "pending"
+        )
     await engine.dispose()
 
 
@@ -110,6 +142,36 @@ async def seed_response() -> None:
     await engine.dispose()
 
 
+async def seed_cancelled() -> None:
+    engine = create_async_engine(url)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("""
+            INSERT INTO events (id,chat_id,topic_id,creator_id,editor_id,payload,fingerprint,
+                timezone,local_date,starts_at,version,status,source,source_message_id,source_update_id)
+            SELECT '00000000-0000-4000-8000-000000000100',chat_id,topic_id,creator_id,editor_id,
+                payload,fingerprint,timezone,local_date,starts_at,2,'cancelled','message',88,0
+            FROM events WHERE id='00000000-0000-4000-8000-000000000099'
+        """)
+        )
+        await connection.execute(
+            text("""
+            INSERT INTO events (id,chat_id,topic_id,creator_id,editor_id,payload,fingerprint,
+                timezone,local_date,starts_at,version,status,source,source_update_id)
+            SELECT '00000000-0000-4000-8000-000000000101',chat_id,topic_id,creator_id,editor_id,
+                payload,fingerprint,timezone,local_date,starts_at,2,'cancelled','form',0
+            FROM events WHERE id='00000000-0000-4000-8000-000000000099'
+        """)
+        )
+        await connection.execute(
+            text("""
+            INSERT INTO publications(event_id,status,desired_version,message_id)
+            VALUES ('00000000-0000-4000-8000-000000000101','published',2,89)
+        """)
+        )
+    await engine.dispose()
+
+
 alembic("downgrade", "base")
 alembic("upgrade", "head")
 alembic("check")
@@ -119,7 +181,9 @@ alembic("upgrade", "0002")
 asyncio.run(seed_event())
 alembic("upgrade", "0003")
 asyncio.run(seed_response())
+alembic("upgrade", "0004")
+asyncio.run(seed_cancelled())
 alembic("upgrade", "head")
 asyncio.run(verify())
 alembic("check")
-print("Empty upgrade and populated 0001 -> 0004 preserved chats, events, publications and RSVP")
+print("Empty upgrade and populated 0001 -> 0005 preserved data and queued legacy message removals")

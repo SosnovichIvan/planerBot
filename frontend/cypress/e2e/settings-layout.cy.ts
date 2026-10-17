@@ -59,7 +59,7 @@ describe('Настройки, ссылки и регрессии layout', () => 
     cy.then(() => { expect(mutations(state, '/approve')[0].body).to.deep.eq({ version: 1 }); state.events[0].publication_status = 'unknown'; });
     cy.get('[aria-label="Обновить события"]').click(); button('Повторить с риском дубликата').click();
     cy.then(() => expect(mutations(state, '/retry')[0].body).to.deep.eq({ ack_duplicate_risk: true }));
-    button('Отменить событие').click(); cy.contains('Отменено').should('be.visible');
+    button('Удалить событие').click(); cy.contains('Событие убрано из календаря').should('be.visible');
     cy.then(() => expect(mutations(state, '/cancel')[0].body).to.deep.eq({ version: 2 }));
   });
 });
