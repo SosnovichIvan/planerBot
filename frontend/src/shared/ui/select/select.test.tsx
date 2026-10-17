@@ -5,6 +5,25 @@ import { Select } from './index';
 
 const options = [{ value: 'a', label: 'Чат А' }, { value: 'b', label: 'Чат Б' }, { value: 'c', label: 'Недоступно', disabled: true }];
 
+it('closes after selection and close-button clicks when rendered inside a form label', async () => {
+  render(<form><label>Выбор чата<Select label="Чат" name="chat" defaultValue="a" options={options} /></label></form>);
+  const trigger = screen.getByRole('combobox');
+  await userEvent.click(trigger);
+  expect(screen.getByRole('dialog').closest('label')).toBeNull();
+  expect(screen.getByRole('dialog').parentElement).toBe(document.body);
+  await userEvent.click(screen.getByText('Чат Б'));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveTextContent('Чат Б');
+  await userEvent.click(trigger);
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  await userEvent.click(trigger);
+  fireEvent.click(screen.getByRole('dialog'), { clientX: 100, clientY: 100 });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveTextContent('Чат Б');
+});
+
 it('selects through a themed listbox, submits a hidden value and restores focus', async () => {
   const changed = vi.fn();
   render(<form><Select label="Чат" name="chat" defaultValue="a" options={options} onChange={changed} /></form>);

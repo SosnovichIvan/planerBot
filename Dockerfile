@@ -13,7 +13,7 @@ CMD ["uvicorn", "planerbot.api:create_app", "--factory", "--host", "0.0.0.0", "-
 FROM node:24.12.0-bookworm-slim AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN CYPRESS_INSTALL_BINARY=0 npm ci
 COPY frontend/ ./
 RUN npm run build:check
 

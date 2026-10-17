@@ -16,7 +16,7 @@ export function Select({ label, options, value, defaultValue = '', onChange, nam
       onClick={() => setOpen(true)} onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setOpen(true); } }}>
       <span className="min-w-0 truncate">{options.find((option) => option.value === selected)?.label ?? 'Выберите'}</span><span aria-hidden="true">⌄</span>
     </button>
-    {open && <Modal title={label} initialFocus={focusRef} onClose={() => setOpen(false)}>
+    {open && <Modal title={label} initialFocus={focusRef} dismissOnBackdrop onClose={() => setOpen(false)}>
       <div id={id} role="listbox" aria-label={label} className="space-y-1" onKeyDown={(e) => {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
         e.preventDefault();
