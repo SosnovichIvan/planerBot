@@ -31,6 +31,7 @@ Telegram-бот и персональный календарь событий и
 - [Ответы на события и личные уведомления](docs/event-rsvp.md).
 - [Дизайн календаря и отметки изменений](docs/prototype-redesign.md).
 - [Удаление события и аудит мобильных компонентов](docs/event-removal-and-ui-audit.md).
+- [Техподдержка через команду /support](docs/support.md).
 - [VPS, HTTPS на IP, релиз и восстановление](docs/deployment.md).
 - [Закрытый прокси для Telegram](docs/telegram-proxy.md).
 

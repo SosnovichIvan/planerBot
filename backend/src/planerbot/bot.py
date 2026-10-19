@@ -28,6 +28,8 @@ from planerbot.access import (
 from planerbot.event_contracts import Conflict, InvalidEvent
 from planerbot.events import EventService
 from planerbot.rsvp import RsvpService
+from planerbot.support import SupportService
+from planerbot.support_bot import support_router
 
 
 def create_dispatcher(
@@ -35,6 +37,7 @@ def create_dispatcher(
     gateway: MembershipGateway,
     events: EventService | None = None,
     rsvp: RsvpService | None = None,
+    support: SupportService | None = None,
 ) -> Dispatcher:
     router = Router()
 
@@ -133,7 +136,10 @@ def create_dispatcher(
             "Общая" if event.chat.is_forum else "Чат",
             overwrite_title=False,
         )
-        commands = [BotCommand(command="calendar", description="Открыть календарь")]
+        commands = [
+            BotCommand(command="calendar", description="Открыть календарь"),
+            BotCommand(command="support", description="Техподдержка"),
+        ]
         await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=event.chat.id))
         await bot.set_my_commands(
             commands
@@ -324,5 +330,7 @@ def create_dispatcher(
             await import_event(message, event_update, command=False)
 
     dispatcher = Dispatcher()
+    if support is not None:
+        dispatcher.include_router(support_router(support))
     dispatcher.include_router(router)
     return dispatcher

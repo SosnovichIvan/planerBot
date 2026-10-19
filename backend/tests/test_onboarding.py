@@ -65,8 +65,8 @@ async def test_admin_promotion_connects_without_setup(chat_type, forum, title):
     calls = [call.args[1] for call in bot.session.call_args_list]
     commands = [call for call in calls if call.__api_method__ == "setMyCommands"]
     assert [[c.command for c in call.commands] for call in commands] == [
-        ["calendar"],
-        ["calendar", "event", "settings"],
+        ["calendar", "support"],
+        ["calendar", "support", "event", "settings"],
     ]
     assert commands[0].scope.type == "chat"
     assert commands[1].scope.type == "chat_administrators"

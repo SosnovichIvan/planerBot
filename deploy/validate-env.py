@@ -15,7 +15,10 @@ def validate(contents: str) -> bool:
             return False
         values[key] = value
     return (
-        set(values) == {"BOT_TOKEN", "POSTGRES_PASSWORD", "ACME_AGREE_TOS", "TELEGRAM_PROXY_URL"}
+        set(values) - {"SUPPORT_CHAT_ID"}
+        == {"BOT_TOKEN", "POSTGRES_PASSWORD", "ACME_AGREE_TOS", "TELEGRAM_PROXY_URL"}
+        and re.fullmatch(r"0|[1-9][0-9]{0,15}", values.get("SUPPORT_CHAT_ID", "0")) is not None
+        and int(values.get("SUPPORT_CHAT_ID", "0")) <= 2**52 - 1
         and re.fullmatch(r"[0-9]{5,20}:[A-Za-z0-9_-]{30,60}", values["BOT_TOKEN"]) is not None
         and re.fullmatch(r"[a-fA-F0-9]{32,128}", values["POSTGRES_PASSWORD"]) is not None
         and values["ACME_AGREE_TOS"] == "yes"

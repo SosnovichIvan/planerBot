@@ -191,8 +191,12 @@ async def test_worker_cleanup(monkeypatch):
     monkeypatch.setattr("planerbot.worker.create_async_engine", lambda url, **kwargs: engine)
     monkeypatch.setattr("planerbot.worker.Delivery", lambda *args: delivery)
     monkeypatch.setattr("planerbot.worker.NoticeDelivery", lambda *args: notices)
+    support = AsyncMock()
+    support.run.side_effect = wait_for_cancel
+    monkeypatch.setattr("planerbot.worker.SupportDelivery", lambda *args: support)
     with pytest.raises(asyncio.CancelledError):
         await run_worker(Settings(_env_file=None, bot_token=TOKEN))
     bot.session.close.assert_awaited_once()
     engine.dispose.assert_awaited_once()
     notices.run.assert_awaited_once()
+    support.run.assert_awaited_once()
