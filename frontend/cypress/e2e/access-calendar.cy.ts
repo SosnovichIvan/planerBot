@@ -88,4 +88,36 @@ describe('Вход, календарь и область данных', () => {
     const state = scenario(); cy.intercept({ method: 'GET', url: '**/api/events*', times: 1 }, { statusCode: 503, body: { detail: 'Временно недоступно' } }); visit(state);
     cy.contains('Временно недоступно').should('be.visible'); cy.get('[aria-label="Обновить события"]').click(); cy.contains('Встреча команды').should('be.visible');
   });
+  it('CAL-09 многодневные встречи отмечены только в день старта, включая начало в прошлом месяце', () => {
+    const state = scenario({ events: [
+      { ...meeting, data: { ...meeting.data, end_date: '2026-10-23' } },
+      { ...meeting, id: second.id, data: { ...meeting.data, title: 'Старт 21 октября', start_date: '2026-10-21', end_date: '2026-10-24' } },
+      { ...meeting, id: '00000000-0000-4000-8000-000000000003', data: { ...meeting.data, start_date: '2026-09-30', end_date: '2026-10-03' } },
+    ] });
+    // API may return overlapping events for the agenda; grid markers still use start_date only.
+    cy.intercept('GET', '**/api/events*', { body: { events: state.events, has_more: false, removals: [], has_more_removals: false } });
+    visit(state);
+    cy.get('[aria-label="20, событий: 1"]').should('exist'); cy.get('[aria-label="21, событий: 1"]').should('exist');
+    cy.get('[aria-label="Календарь месяца"] button[aria-label*="событий:"]').should('have.length', 2);
+    cy.get('[aria-label="21, событий: 1"]').click(); activeDialog().should('contain.text', 'Старт 21 октября').and('not.contain.text', meeting.data.title);
+  });
+  for (const [width, height] of [[320, 568], [375, 667], [812, 375], [1440, 900]]) {
+    for (const theme of ['dark', 'light']) it(`CAL-10 сегодня выделено в календаре и date picker (${width}x${height}, ${theme})`, () => {
+      cy.viewport(width, height); const state = scenario({ events: [] }); visit(state);
+      if (theme === 'light') cy.get('[aria-label="Включить светлую тему"]').click();
+      const shot = (name: string) => cy.screenshot(`today/${width}-${height}-${theme}-${name}`, { capture: 'viewport' });
+      const current = () => cy.get('[aria-label="Календарь месяца"] [aria-current="date"]');
+      current().should('have.text', '17').and('have.attr', 'title', 'Сегодня').should($el => expect(getComputedStyle($el[0]).boxShadow).not.to.eq('none'));
+      current().scrollIntoView(); shot('empty');
+      cy.then(() => { state.events.push({ ...meeting, has_updates: true, data: { ...meeting.data, start_date: '2026-10-17', end_date: '2026-10-21' } }); });
+      cy.get('[aria-label="Обновить события"]').click(); current().should('have.attr', 'aria-label', '17, событий: 1').and('have.attr', 'aria-description', 'Нужен ваш ответ. Обновлено'); current().scrollIntoView(); shot('event');
+      button('Создать событие').click(); cy.get('[aria-label="Дата начала"]').click();
+      const fullyVisible = ($el: JQuery<HTMLElement>) => { const rect = $el[0].getBoundingClientRect(); const body = $el[0].closest('.modal-body')!.getBoundingClientRect(); expect(rect.top).to.be.at.least(body.top); expect(rect.bottom).to.be.at.most(body.bottom); };
+      activeDialog().find('[aria-current="date"]').should('have.attr', 'aria-pressed', 'false').should(fullyVisible); shot('picker');
+      activeDialog().find('[aria-current="date"]').click(); cy.get('[aria-label="Дата начала"]').click();
+      activeDialog().find('[aria-current="date"]').should('have.attr', 'aria-pressed', 'true').and('have.class', 'ring-white').should(fullyVisible); shot('selected');
+      escape(); escape();
+      cy.get('[aria-label="Следующий месяц"]').click(); cy.get('[aria-label="Календарь месяца"] [aria-current="date"]').should('not.exist');
+    });
+  }
 });
