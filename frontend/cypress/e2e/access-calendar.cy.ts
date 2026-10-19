@@ -51,11 +51,18 @@ describe('Вход, календарь и область данных', () => {
     choose('Чат', 'Все чаты'); cy.contains('Встреча клуба').should('be.visible');
   });
   it('CAL-03 навигация месяца меняет диапазон и очищает старые события', () => {
-    const state = scenario(); visit(state); cy.get('table').should('have.attr', 'aria-label', 'октябрь 2026 г.');
-    cy.intercept('GET', '**/api/events*').as('month');
-    cy.get('[aria-label="Следующий месяц"]').click(); cy.wait('@month').its('request.query.start').should('eq', '2026-11-01');
+    const state = scenario();
+    // The grid renders before its initial events request. Match each range so
+    // waiting for navigation cannot consume the still-starting October request.
+    cy.intercept({ method: 'GET', pathname: '/api/events', query: { start: '2026-10-01', end: '2026-11-01' } }).as('october');
+    cy.intercept({ method: 'GET', pathname: '/api/events', query: { start: '2026-11-01', end: '2026-12-01' } }).as('november');
+    visit(state); cy.wait('@october');
+    cy.get('table').should('have.attr', 'aria-label', 'октябрь 2026 г.'); cy.contains('Встреча команды').should('be.visible');
+    cy.get('[aria-label="Следующий месяц"]').click(); cy.wait('@november').its('request.query').should('include', { start: '2026-11-01', end: '2026-12-01' });
+    cy.get('table').should('have.attr', 'aria-label', 'ноябрь 2026 г.');
     cy.contains('В выбранном периоде событий нет').should('be.visible'); cy.contains('Встреча команды').should('not.exist');
-    cy.get('[aria-label="Предыдущий месяц"]').click(); cy.contains('Встреча команды').should('be.visible');
+    cy.get('[aria-label="Предыдущий месяц"]').click(); cy.wait('@october');
+    cy.get('table').should('have.attr', 'aria-label', 'октябрь 2026 г.'); cy.contains('Встреча команды').should('be.visible');
   });
   it('CAL-04 один день с одной встречей сразу открывает карточку и ссылку сообщения через SDK', () => {
     const state = scenario({ events: [meeting] }); visit(state);
