@@ -1,3 +1,4 @@
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from planerbot.access import ChatAccess
@@ -8,6 +9,7 @@ from planerbot.events import EventService
 from planerbot.network import create_bot
 from planerbot.repository import ChatRepository
 from planerbot.rsvp import RsvpService
+from planerbot.support import SupportService
 from planerbot.telegram import TelegramGateway
 
 
@@ -20,8 +22,23 @@ async def run_polling(settings: Settings | None = None) -> None:
     bot = create_bot(config)
     store, gateway = ChatRepository(engine), TelegramGateway(bot)
     service = EventService(ChatAccess(store, gateway, bot.id), store, EventRepository(engine))
-    dispatcher = create_dispatcher(store, gateway, service, RsvpService(engine, service.access))
+    dispatcher = create_dispatcher(
+        store,
+        gateway,
+        service,
+        RsvpService(engine, service.access),
+        SupportService(engine, config.support_chat_id),
+    )
     try:
+        await bot.set_my_commands(
+            [
+                BotCommand(command="calendar", description="Открыть календарь"),
+                BotCommand(command="event", description="Создать событие"),
+                BotCommand(command="support", description="Техподдержка"),
+                BotCommand(command="stop", description="Отключить личные уведомления"),
+            ],
+            scope=BotCommandScopeAllPrivateChats(),
+        )
         await dispatcher.start_polling(bot, allowed_updates=dispatcher.resolve_used_update_types())
     finally:
         await bot.session.close()

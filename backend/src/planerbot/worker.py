@@ -8,6 +8,7 @@ from planerbot.network import create_bot
 from planerbot.notices import NoticeDelivery
 from planerbot.publications import Delivery, PublicationRepository
 from planerbot.repository import ChatRepository
+from planerbot.support import SupportDelivery
 from planerbot.telegram import TelegramGateway
 
 
@@ -29,16 +30,18 @@ async def run_worker(settings: Settings | None = None) -> None:
             ).run()
         )
         publications = asyncio.create_task(delivery.run())
+        support = asyncio.create_task(SupportDelivery(engine, gateway).run())
         try:
             done, _ = await asyncio.wait(
-                {publications, notices}, return_when=asyncio.FIRST_COMPLETED
+                {publications, notices, support}, return_when=asyncio.FIRST_COMPLETED
             )
             for task in done:
                 await task
         finally:
             notices.cancel()
             publications.cancel()
-            await asyncio.gather(notices, publications, return_exceptions=True)
+            support.cancel()
+            await asyncio.gather(notices, publications, support, return_exceptions=True)
     finally:
         await bot.session.close()
         await engine.dispose()

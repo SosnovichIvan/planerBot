@@ -23,6 +23,33 @@ class Base(DeclarativeBase):
     pass
 
 
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger)
+    source_message_id: Mapped[int] = mapped_column(BigInteger)
+    target_id: Mapped[int] = mapped_column(BigInteger)
+    name: Mapped[str] = mapped_column(String(256))
+    username: Mapped[str | None] = mapped_column(String(64))
+    body: Mapped[str] = mapped_column(String(3000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16))
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    lease: Mapped[UUID | None]
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_message_id", name="support_source_unique"),
+        CheckConstraint("user_id > 0 AND target_id > 0", name="support_private_ids"),
+        CheckConstraint("char_length(body) BETWEEN 1 AND 3000", name="support_body_length"),
+        CheckConstraint(
+            "status IN ('pending','sending','sent','failed','unknown')", name="support_status"
+        ),
+        Index("support_user_created", "user_id", "created_at"),
+        Index("support_pending", "status", "next_attempt"),
+    )
+
+
 class Chat(Base):
     __tablename__ = "chats"
 

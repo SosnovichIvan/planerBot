@@ -11,11 +11,35 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPrevie
 from planerbot.access import AccessUnavailable, Membership
 from planerbot.event_contracts import EventView
 from planerbot.publications import DeliveryRejected, DeliveryUnknown
+from planerbot.support import SupportJob
 
 
 class TelegramGateway:
     def __init__(self, bot: Bot):
         self.bot = bot
+
+    async def send_support(self, job: SupportJob) -> None:
+        from planerbot.notices import Deferred
+
+        contact = f"@{job.username}" if job.username else "ник не указан"
+        text = (
+            f"Техподдержка planerBot\nОбращение №{job.id.hex}\n"
+            f"Пользователь: {job.name}\nTelegram: {contact}\nID: {job.user_id}\n\n{job.body}"
+        )
+        try:
+            await self.bot.send_message(
+                chat_id=job.target_id,
+                text=text,
+                parse_mode=None,
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+                request_timeout=10,
+            )
+        except TelegramRetryAfter as exc:
+            raise Deferred(exc.retry_after) from exc
+        except (TimeoutError, TelegramNetworkError, TelegramServerError) as exc:
+            raise DeliveryUnknown from exc
+        except TelegramAPIError as exc:
+            raise DeliveryRejected from exc
 
     async def membership(self, chat_id: int, user_id: int) -> Membership:
         try:

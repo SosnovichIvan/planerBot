@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     webhook_secret: SecretStr = SecretStr("")
     telegram_proxy_url: SecretStr = SecretStr("")
     init_data_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    support_chat_id: int = Field(default=0, ge=0, le=2**52 - 1)
 
     @field_validator("telegram_proxy_url")
     @classmethod
