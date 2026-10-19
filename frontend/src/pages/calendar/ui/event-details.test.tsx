@@ -88,7 +88,7 @@ it('confirms a group broadcast, reports delivery separately and prevents double 
   expect(sendCampaign).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: 'Повторить тот же запрос' })).toBeDisabled();
   await act(() => finish({ id: 'campaign', statuses: {} }));
-  expect(await screen.findByText(/поставлена в очередь/)).toBeVisible();
+  expect(await screen.findByText(/Рассылка создана/)).toBeVisible();
   expect(sendCampaign).toHaveBeenCalledWith('signed', expect.objectContaining({ id: event.id }), 'unanswered', 'Пожалуйста, ответьте', expect.any(String));
   await userEvent.click(screen.getByRole('button', { name: 'Проверить доставку' }));
   expect(await screen.findByText('Отправлено: 1')).toBeVisible();
@@ -114,7 +114,7 @@ it('retains a frozen request after an uncertain outcome and retries with the sam
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть форму отправки' }));
   expect(close).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Повторить тот же запрос' }));
-  await screen.findByText(/поставлена в очередь/);
+  await screen.findByText(/Рассылка создана/);
   expect(vi.mocked(sendCampaign).mock.calls[0]).toEqual(vi.mocked(sendCampaign).mock.calls[1]);
   await userEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
   expect(close).toHaveBeenCalledOnce();

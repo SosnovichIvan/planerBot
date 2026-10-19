@@ -13,11 +13,13 @@ import { EventDetails } from './ui/event-details';
 import { Select } from '../../shared/ui/select';
 import { Modal } from '../../shared/ui/modal';
 import { Icon } from '../../shared/ui/icon';
+import { formatDate, useToday } from '../../shared/lib/date';
 
 type Chats = Awaited<ReturnType<typeof loadChats>>;
 type LoadState = { kind: 'loading' } | { kind: 'ready'; chats: Chats } | { kind: 'error'; status: number };
 
 export function CalendarPage() {
+  const today = useToday();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -107,16 +109,18 @@ export function CalendarPage() {
               <tbody>{Array.from({ length: Math.ceil(monthDays(month).length / 7) }, (_, week) => (
                 <tr key={week}>{Array.from({ length: 7 }, (_, weekday) => {
                   const day = monthDays(month)[week * 7 + weekday];
+                  const isToday = !!day && today === monthRange(month).start.slice(0, 8) + String(day).padStart(2, '0');
                   return <td key={weekday} className="h-11 overflow-hidden p-0.5 sm:h-16 lg:h-19">{day && counts[day] > 0 ?
-                    <Button variant="unstyled" className={`relative flex h-10 w-full min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-accent/15 sm:h-15 lg:h-18 ${unanswered[day] ? 'text-attention' : ''}`} aria-label={`${day}, событий: ${counts[day]}`} aria-description={[unanswered[day] ? 'Нужен ваш ответ' : '', updated[day] ? 'Обновлено' : ''].filter(Boolean).join('. ') || undefined} onClick={() => {
+                    <Button variant="unstyled" className={`relative flex h-10 w-full min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-accent/15 sm:h-15 lg:h-18 ${isToday ? 'font-bold ring-2 ring-inset ring-focus' : ''} ${unanswered[day] ? 'text-attention' : ''}`} aria-current={isToday ? 'date' : undefined} title={isToday ? 'Сегодня' : undefined} aria-label={`${day}, событий: ${counts[day]}`} aria-description={[unanswered[day] ? 'Нужен ваш ответ' : '', updated[day] ? 'Обновлено' : ''].filter(Boolean).join('. ') || undefined} onClick={() => {
                       const date = monthRange(month).start.slice(0, 8) + String(day).padStart(2, '0');
                       const events = eventsOnDate(monthEvents, date);
                       if (events.length === 1 && !eventState.more) openEvent(events[0]); else setSelectedDay(day);
                     }}>{day}<span className={`absolute bottom-1 right-2 size-1.5 rounded-full ${unanswered[day] ? 'bg-attention' : 'bg-accent'}`} aria-hidden="true" />{updated[day] > 0 && <span className="absolute bottom-1 left-2 size-1.5 rounded-full bg-focus" aria-hidden="true" />}</Button>
-                    : <span className="flex h-10 items-center justify-center rounded-lg bg-canvas sm:h-15 lg:h-18">{day}</span>}</td>;
+                    : <span aria-current={isToday ? 'date' : undefined} title={isToday ? 'Сегодня' : undefined} className={`flex h-10 items-center justify-center rounded-lg sm:h-15 lg:h-18 ${isToday ? 'bg-accent/20 font-bold ring-2 ring-inset ring-focus' : 'bg-canvas'}`}>{day}</span>}</td>;
                 })}</tr>
               ))}</tbody>
             </table>
+            {today.startsWith(monthRange(month).start.slice(0, 8)) && <p className="mt-4 flex items-center gap-2 text-xs text-muted"><span className="size-3 shrink-0 rounded-sm bg-accent/20 ring-2 ring-inset ring-focus" aria-hidden="true" />Сегодня: {formatDate(today)}</p>}
             {Object.values(unanswered).some(count => count > 0) && <p className="mt-4 text-xs text-attention">Красным отмечены дни, где нужен ваш ответ.</p>}
           </Panel>
         </div>

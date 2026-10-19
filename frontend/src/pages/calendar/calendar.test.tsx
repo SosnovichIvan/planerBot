@@ -6,6 +6,7 @@ import * as telegram from '../../shared/telegram';
 import { CalendarPage } from './index';
 import { event as calendarEvent } from './ui/fixtures.test-data';
 import { selectOption } from '../../shared/ui/controls.test-support';
+import { localDate } from '../../shared/lib/date';
 
 vi.mock('../../shared/api', async (original) => ({
   ...await original<typeof import('../../shared/api')>(), loadChats: vi.fn(), loadEvents: vi.fn().mockResolvedValue({ events: [], has_more: false, has_more_removals: false }), loadEventDetails: vi.fn(), respondEvent: vi.fn(),
@@ -24,6 +25,19 @@ beforeEach(() => {
   vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false });
   vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
+});
+
+it.each([false, true])('marks today with and without an event (%s)', async (hasEvent) => {
+  vi.mocked(loadChats).mockResolvedValue(chats);
+  vi.mocked(loadEvents).mockResolvedValue({ events: hasEvent ? [{ ...calendarEvent, data: { ...calendarEvent.data, start_date: localDate(new Date()) } }] : [], has_more: false, has_more_removals: false });
+  render(<CalendarPage />);
+  const calendar = await screen.findByRole('region', { name: 'Календарь месяца' });
+  const today = calendar.querySelector('[aria-current="date"]');
+  expect(today).toHaveTextContent(String(new Date().getDate()));
+  expect(today).toHaveClass('ring-focus'); expect(today).toHaveAttribute('title', 'Сегодня');
+  expect(calendar.querySelectorAll('[aria-current="date"]')).toHaveLength(1);
+  await userEvent.click(screen.getByRole('button', { name: 'Следующий месяц' }));
+  expect(calendar.querySelector('[aria-current="date"]')).not.toBeInTheDocument();
 });
 
 it('starts dark, remembers explicit theme selection and opens settings only for admins', async () => {
