@@ -80,6 +80,7 @@ async def verify() -> None:
             )
             == "pending"
         )
+        assert await connection.scalar(text("SELECT count(*) FROM support_tickets")) == 0
         assert (
             await connection.scalar(
                 text(
@@ -186,4 +187,4 @@ asyncio.run(seed_cancelled())
 alembic("upgrade", "head")
 asyncio.run(verify())
 alembic("check")
-print("Empty upgrade and populated 0001 -> 0005 preserved data and queued legacy message removals")
+print("Empty upgrade and populated 0001 -> 0006 preserved data and added empty support queue")

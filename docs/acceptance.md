@@ -76,6 +76,7 @@
 | Удаление | Снятие из календаря до лимита 200, отдельные задачи только администраторам, удаление исходного/бот-сообщения, повтор/not-found/48h/unknown, гонка отправки, сохранность RSVP, SQL-планы и batch-backfill | test_event_removals.py, test_event_api.py |
 | Сеть/выпуск | Proxy без fallback, env validation, release guards, backup/restore в изолированном smoke | test_network.py, test_deployment.py, deploy/smoke-test.sh |
 | Upgrade | Пустая и заполненная схема, сохранность событий/публикаций/RSVP | scripts/check_migrations.py |
+| Техподдержка | /support, deep link, ответ на приглашение, приватность/контекст, текст/Unicode, очередь, лимит и повторы, lease, Telegram errors | test_support_bot.py, test_support.py, test_deployment.py |
 
 ## Ручная приёмка реальных Telegram-клиентов
 
