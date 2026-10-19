@@ -104,8 +104,8 @@ export async function sendCampaign(raw: string, event: CalendarEvent, audience: 
   return checked(await client(raw).POST('/api/chats/{chat_id}/events/{event_id}/campaigns', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id }, header: { 'Idempotency-Key': key } }, body: { audience, text } }));
 }
 
-export async function campaignStatus(raw: string, event: CalendarEvent, campaignId: string) {
-  return checked(await client(raw).GET('/api/chats/{chat_id}/events/{event_id}/campaigns/{campaign_id}', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id, campaign_id: campaignId } } }));
+export async function campaignStatus(raw: string, event: CalendarEvent, campaignId: string, signal?: AbortSignal) {
+  return checked(await client(raw).GET('/api/chats/{chat_id}/events/{event_id}/campaigns/{campaign_id}', { params: { path: { chat_id: Number(event.chat_id), event_id: event.id, campaign_id: campaignId } }, signal }));
 }
 
 export async function disablePersonalMessages(raw: string) {

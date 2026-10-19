@@ -30,7 +30,7 @@ describe('Ответы, изменения и личные сообщения', 
       cy.get('[aria-label="Ответы участников календаря"]').contains('button', new RegExp(`^${label}:`)).click();
       cy.get('dialog[open]').should('have.length', 2); activeDialog().find('h2').should('have.text', `Сообщение: ${label}`);
       cy.get('textarea').type('Пожалуйста, проверьте планы'); button('Отправить группе').click(); cy.get('dialog[open]').should('have.length', 1);
-      cy.contains('Рассылка поставлена в очередь. Это ещё не подтверждение доставки.').should('be.visible');
+      cy.contains('Рассылка создана. Это ещё не подтверждение доставки.').should('be.visible');
       cy.then(() => expect(mutations(state, '/campaigns')[0].body).to.deep.eq({ audience, text: 'Пожалуйста, проверьте планы' }));
     });
   }
@@ -43,7 +43,7 @@ describe('Ответы, изменения и личные сообщения', 
     visit(state); button('Открыть событие').click(); cy.contains('button', /^Не проголосовали:/).click();
     cy.get('textarea').type('Ответьте на приглашение'); button('Отправить группе').click(); cy.contains('Результат запроса неизвестен').should('be.visible');
     cy.get('textarea').should('be.disabled').and('have.value', 'Ответьте на приглашение'); cy.then(() => { offline = false; }); button('Повторить тот же запрос').click();
-    cy.contains('Рассылка поставлена в очередь').should('be.visible'); cy.then(() => { expect(attempts.length).to.be.greaterThan(1); attempts.forEach((attempt) => expect(attempt).to.deep.eq(attempts[0])); });
+    cy.contains('Рассылка создана').should('be.visible'); cy.then(() => { expect(attempts.length).to.be.greaterThan(1); attempts.forEach((attempt) => expect(attempt).to.deep.eq(attempts[0])); });
   });
   it('MSG-03 Escape закрывает только верхнюю форму, несохранённый текст требует подтверждения', () => {
     const state = scenario({ events: [{ ...meeting, my_response: 'yes' }] }); visit(state); button('Открыть событие').focus(); cy.realPress(Cypress.Keyboard.Keys.ENTER); cy.contains('button', /^Приду:/).focus(); cy.realPress(Cypress.Keyboard.Keys.ENTER);
@@ -75,5 +75,25 @@ describe('Ответы, изменения и личные сообщения', 
     cy.get('[aria-label="Что изменилось"]').should('contain.text', 'Парк').and('contain.text', 'Кафе'); cy.contains('Ваш ответ: Приду').should('be.visible');
     escape(); cy.get('[aria-label="20, событий: 1"]').should('not.have.attr', 'aria-description');
     cy.then(() => expect(state.events[0].my_response).to.eq('yes'));
+  });
+  for (const [audience, label] of [['yes', 'Приду'], ['no', 'Не приду']] as const) it(`MSG-07 статус автоматически обновляется для группы ${audience} без повторной отправки`, () => {
+    const state = scenario({ events: [{ ...meeting, my_response: 'yes' }], campaignStatuses: { pending: 1 } }); visit(state);
+    button('Открыть событие').click(); cy.contains('button', new RegExp(`^${label}:`)).click(); cy.get('textarea').type('Личное сообщение группе'); button('Отправить группе').click();
+    cy.get('[aria-label="Доставка рассылки"]').should('contain.text', 'В очереди: 1');
+    cy.then(() => { state.campaignStatuses = { sent: 1 }; });
+    cy.get('[aria-label="Доставка рассылки"]').should('contain.text', 'Отправлено: 1').and('contain.text', 'не в общий чат');
+    cy.then(() => { expect(mutations(state, '/campaigns')).to.have.length(1); expect((mutations(state, '/campaigns')[0].body as { audience: string }).audience).to.eq(audience); });
+  });
+  it('MSG-08 пустая аудитория явно отличается от доставленного сообщения', () => {
+    const state = scenario({ events: [{ ...meeting, my_response: 'yes' }], campaignStatuses: {} }); visit(state);
+    button('Открыть событие').click(); cy.contains('button', /^Не приду:/).click(); cy.get('textarea').type('Сообщение'); button('Отправить группе').click();
+    cy.get('[aria-label="Доставка рассылки"]').should('contain.text', 'В выбранной группе нет получателей. Сообщения не отправлялись.').and('not.contain.text', 'Отправлено:');
+  });
+  it('MSG-09 ошибка чтения статуса допускает безопасный GET retry без второго POST', () => {
+    const state = scenario({ events: [{ ...meeting, my_response: 'yes' }] });
+    cy.intercept({ method: 'GET', url: '**/campaigns/*', times: 1 }, { statusCode: 503, body: { detail: 'Статус временно недоступен' } });
+    visit(state); button('Открыть событие').click(); cy.contains('button', /^Приду:/).click(); cy.get('textarea').type('Сообщение'); button('Отправить группе').click();
+    cy.get('[aria-label="Доставка рассылки"]').should('contain.text', 'Статус временно недоступен'); button('Проверить доставку').click();
+    cy.get('[aria-label="Доставка рассылки"]').should('contain.text', 'Отправлено: 1'); cy.then(() => expect(mutations(state, '/campaigns')).to.have.length(1));
   });
 });

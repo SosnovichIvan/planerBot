@@ -35,6 +35,35 @@ async def setup(engine):
     return service, gateway, roles, rsvp, admin, member, event
 
 
+@pytest.mark.parametrize("audience", ["yes", "no"])
+@pytest.mark.parametrize("change_answer", [False, True])
+async def test_yes_no_campaign_targets_matching_private_recipient(engine, audience, change_answer):
+    service, _, _, rsvp, admin, member, event = await setup(engine)
+    opposite = "no" if audience == "yes" else "yes"
+    await rsvp.detail(admin, A, event.id, opposite)
+    await rsvp.detail(member, A, event.id, audience)
+    campaign = await rsvp.campaign(
+        admin, A, event.id, uuid4(), CampaignInput(audience=audience, text="Сообщение группе")
+    )
+    assert (await rsvp.campaign_status(admin, A, event.id, campaign.id)).statuses == {"pending": 1}
+    if change_answer:
+        await rsvp.detail(member, A, event.id, opposite)
+    telegram = AsyncMock()
+    delivery = NoticeDelivery(engine, service.access, telegram)
+    assert await delivery.once()
+    assert not await delivery.once()
+    if change_answer:
+        telegram.send_personal.assert_not_awaited()
+    else:
+        telegram.send_personal.assert_awaited_once()
+        assert telegram.send_personal.call_args.args[0] == member.id
+        assert telegram.send_personal.call_args.args[1].id == event.id
+        assert telegram.send_personal.call_args.args[2] == "Сообщение группе"
+    assert (await rsvp.campaign_status(admin, A, event.id, campaign.id)).statuses == {
+        "skipped" if change_answer else "sent": 1
+    }
+
+
 async def test_private_ballot_and_audience(engine):
     service, _, roles, rsvp, admin, member, event = await setup(engine)
     assert (await rsvp.detail(admin, A, event.id)).counts is None

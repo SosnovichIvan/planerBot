@@ -32,6 +32,7 @@ Telegram-бот и персональный календарь событий и
 - [Дизайн календаря и отметки изменений](docs/prototype-redesign.md).
 - [Удаление события и аудит мобильных компонентов](docs/event-removal-and-ui-audit.md).
 - [Техподдержка через команду /support](docs/support.md).
+- [Маркеры начала события, текущая дата и проверка рассылки](docs/calendar-start-today-delivery.md).
 - [VPS, HTTPS на IP, релиз и восстановление](docs/deployment.md).
 - [Закрытый прокси для Telegram](docs/telegram-proxy.md).
 

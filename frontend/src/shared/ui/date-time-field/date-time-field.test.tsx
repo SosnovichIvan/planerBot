@@ -57,3 +57,21 @@ it('selects hours and minutes, confirms in 24h format, and supports clear/disabl
   view.rerender(<DateTimeField label="Время" name="time" type="time" disabled />);
   expect(screen.getByRole('button', { name: 'Время' })).toBeDisabled();
 });
+
+it('highlights today independently of the selected day and never marks padding cells', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 9, 19, 12));
+  const view = render(<DateTimeField label="Дата" name="date" type="date" defaultValue="2026-10-19" />);
+  try {
+    const trigger = screen.getByRole('button', { name: 'Дата' });
+    await userEvent.click(trigger);
+    expect(screen.getByRole('button', { current: 'date' })).toHaveClass('ring-white');
+    await userEvent.click(screen.getByRole('button', { name: '20 октября 2026 г.' }));
+    await userEvent.click(trigger);
+    expect(screen.getByRole('button', { current: 'date' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { current: 'date' })).toHaveClass('ring-focus');
+    await userEvent.click(screen.getByRole('button', { name: 'Следующий месяц' }));
+    expect(screen.queryByRole('button', { current: 'date' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
+    expect(screen.getAllByRole('button', { current: 'date' })).toHaveLength(1);
+  } finally { view.unmount(); vi.useRealTimers(); }
+});

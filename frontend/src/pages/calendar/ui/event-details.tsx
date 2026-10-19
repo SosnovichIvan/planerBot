@@ -1,7 +1,7 @@
 import { Field, TextArea } from '../../../shared/ui/field';
 import { Button } from '../../../shared/ui/button';
 import { useEffect, useRef, useState } from 'react';
-import { ApiFailure, campaignStatus, disablePersonalMessages, errorText, eventAction, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, disablePersonalMessages, errorText, eventAction, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
 import type { Answer, Campaign, Chat, EventDetails as Details } from '../../../shared/api';
 import { requestPersonalMessages, openTelegramMessage } from '../../../shared/telegram';
 import { Modal } from '../../../shared/ui/modal';
@@ -9,9 +9,9 @@ import { EventForm } from './event-form';
 import { formatDate } from '../../../shared/lib/date';
 import { revealControl } from '../../../shared/lib/scroll';
 import { TextLink } from '../../../shared/ui/text-link';
+import { CampaignDelivery } from './campaign-delivery';
 
 const labels: Record<Answer, string> = { yes: 'Приду', no: 'Не приду', unanswered: 'Не проголосовали' };
-const deliveryLabels: Record<string, string> = { pending: 'В очереди', sending: 'Отправляется', sent: 'Отправлено', skipped: 'Пропущено', failed: 'Ошибка', unknown: 'Доставка неизвестна' };
 type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; data: Details };
 
 export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats = [] }: { raw: string; chatId: string; eventId: string; onClose: () => void; onChanged: () => void; chats?: Chat[] }) {
@@ -112,7 +112,7 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
           const saved = submitted.current;
           try { setCampaign(await sendCampaign(raw, event, saved.audience, saved.text, saved.key)); }
           catch (cause) { if (cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500) { submitted.current = null; setUncertain(false); } throw cause; }
-          submitted.current = null; setUncertain(false); setAudience(null); setText(''); setNotice('Рассылка поставлена в очередь. Это ещё не подтверждение доставки.');
+          submitted.current = null; setUncertain(false); setAudience(null); setText(''); setNotice('Рассылка создана. Это ещё не подтверждение доставки.');
         });
       }}>
         <div className="event-form-body">
@@ -126,11 +126,8 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
           <Button variant="primary" type="submit" disabled={busy || !text.trim()}>{uncertain ? 'Повторить тот же запрос' : 'Отправить группе'}</Button>
         </div>
       </form></Modal>}
-      {campaign && <section className="mt-5 text-sm" aria-label="Доставка рассылки">
-        {Object.entries(campaign.statuses ?? {}).map(([status, count]) => <p key={status}>{deliveryLabels[status]}: {count}</p>)}
-        <Button variant="secondary" className="mt-3" disabled={busy} onClick={() => void act(async () => { setCampaign(await campaignStatus(raw, event, campaign.id)); })}>Проверить доставку</Button>
-        <p className="mt-2 text-xs text-muted">«Пропущено»: нет разрешения, изменился ответ или доступ. Неизвестный исход автоматически не повторяется.</p>
-      </section>}
+      {campaign && notice && <p ref={noticeRef} className="mt-4 rounded-xl border border-line bg-canvas p-3 text-sm" role="status">{notice}</p>}
+      {campaign && <CampaignDelivery key={campaign.id} raw={raw} event={event} id={campaign.id} />}
       <section className="mt-6 border-t border-line pt-4 text-sm" aria-label="Личные уведомления">
         <p>{data.personal_messages_enabled ? 'Личные уведомления включены' : 'Для личных уведомлений разрешите сообщения боту. После /stop включите их снова командой /start в личке.'}</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -143,6 +140,6 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
       </section>
     </>}
     {!audience && error && <p ref={errorRef} className="mt-4 text-sm text-attention" role="alert">{error}</p>}
-    {notice && <p ref={noticeRef} className="mt-4 rounded-xl border border-line bg-canvas p-3 text-sm" role="status">{notice}</p>}
+    {!campaign && notice && <p ref={noticeRef} className="mt-4 rounded-xl border border-line bg-canvas p-3 text-sm" role="status">{notice}</p>}
   </Modal>;
 }
