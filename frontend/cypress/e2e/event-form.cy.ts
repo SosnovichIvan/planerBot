@@ -6,9 +6,17 @@ describe('Создание и редактирование', () => {
     button('Создать и опубликовать').click(); cy.get('dialog[open]').should('not.exist'); cy.contains('Новая встреча').should('be.visible');
     cy.then(() => {
       const [call] = mutations(state, '/events'); expect(call.key).to.match(/^[a-f0-9-]{36}$/);
-      expect(call.body).to.include({ topic_id: 10, title: 'Новая встреча', start_date: '2026-10-20', place: 'Парк', online_url: '', notify_members: false });
+      expect(call.body).to.include({ topic_id: 10, title: 'Новая встреча', start_date: '2026-10-20', place: 'Парк', online_url: '', notify_members: true });
       expect(mutations(state, '/events')).to.have.length(1);
     });
+  });
+  it('FORM-10 invitation is checked for each new form and can be disabled for one event', () => {
+    const state = scenario(); visit(state); button('Создать событие').click();
+    cy.get('input[name="notify_members"]').should('be.checked').uncheck();
+    fill(); button('Создать и опубликовать').click();
+    cy.then(() => expect(mutations(state, '/events')[0].body).to.include({ notify_members: false }));
+    button('Создать событие').click();
+    cy.get('input[name="notify_members"]').should('be.checked');
   });
   it('FORM-02 валидирует обязательные поля и сохраняет черновик после серверной ошибки', () => {
     const state = scenario(); visit(state); button('Создать событие').click();

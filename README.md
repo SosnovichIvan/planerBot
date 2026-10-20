@@ -29,7 +29,7 @@ Telegram-бот и персональный календарь событий и
 - [Создание события из календаря и команды /event](docs/event-creation-flow.md).
 - [События выбранного дня, место и клавиатура чата](docs/day-events-and-location.md).
 - [Ответы на события и личные уведомления](docs/event-rsvp.md).
-- [Автоматические приглашения и список непроголосовавших](docs/event-alerts-and-unanswered.md).
+- [Приглашения по галочке и список непроголосовавших](docs/event-alerts-and-unanswered.md).
 - [Дизайн календаря и отметки изменений](docs/prototype-redesign.md).
 - [Удаление события и аудит мобильных компонентов](docs/event-removal-and-ui-audit.md).
 - [Техподдержка через команду /support](docs/support.md).

@@ -1,14 +1,16 @@
-# Автоматические приглашения и список без ответа
+# Приглашения по галочке и список без ответа
 
 Контракт реализации, 2026-10-20. Изменения ещё не выпущены.
 
-- Новый active event (форма, /event, импорт) атомарно ставит одно приглашение
-  на каждого известного участника в существующую durable очередь. Pending
-  event уведомляет только при первом переходе в active. Повтор update/submit
-  не создаёт повторную кампанию; редактирование само по себе не приглашает.
-- `notify_members` сохраняется для совместимости и явного оповещения о правках,
-  но больше не отключает приглашение нового события. Старые fingerprints
-  остаются совместимыми. Existing active events не получают backfill рассылки.
+- В каждой новой форме галочка приглашения включена. При checked новый active
+  event атомарно ставит приглашение на каждого известного участника в durable
+  очередь; при unchecked сервер не создаёт кампанию. Повтор submit не создаёт
+  повторную кампанию; редактирование само по себе не приглашает.
+- `notify_members=true` — явное намерение отправки. False или отсутствие поля
+  не запускает рассылку. UI при создании передаёт true по умолчанию, при правке
+  галочка остаётся выключенной. Старые fingerprints совместимы; existing active
+  events не получают backfill. Импорт, /event и approve без галочки не запускают
+  личные приглашения сами по себе.
 - Автор больше не обязан оставаться администратором для доставки автоматического
   приглашения уже созданного события. Перед отправкой проверяются active event,
   включённая тема, текущее членство получателя и действующее согласие на личку.
@@ -45,10 +47,9 @@ frontend unit/coverage, Cypress mobile/desktop, API generation, types/lint.
 Обновляются backend/worker и frontend; новая схема БД не нужна (`alembic check`
 не нашёл upgrade operations). Этот PR не добавляет миграций; общий релиз может
 включать миграции предыдущих PR, поэтому штатный migrator не отключается.
-Старый frontend получает автоматическое приглашение
-даже с `notify_members=false`; поле сохранено для wire/fingerprint совместимости,
-но его смысл создания теперь иной. Для пояснения нового поведения нужен refresh
-интерфейса. Обновлять API и worker следует одной версией: старый worker ещё
+False из старого или нового frontend всегда означает отсутствие приглашения.
+Поле сохранено для wire/fingerprint совместимости. Для включённой по умолчанию
+галочки нужен refresh интерфейса. Обновлять API и worker следует одной версией: старый worker ещё
 проверяет admin роль отправителя автоматического приглашения.
 
 При откате к старому API новая кнопка списка может получить 404 с предложением
@@ -65,22 +66,22 @@ frontend unit/coverage, Cypress mobile/desktop, API generation, types/lint.
   Это не production benchmark/SLA. Снимок страницы и повторная проверка ответов
   — отдельные bounded запросы; измерено 8 SELECT на страницу (включая две
   проверки caller/chat), нет SQL SELECT на каждого участника.
-- Backend: pytest 9.1.1 / Coverage.py 7.16.2, 364 tests; 99.94% lines / 99.15%
+- Backend: pytest 9.1.1 / Coverage.py 7.16.2, 367 tests; 99.94% lines / 99.15%
   branches по всем backend/src/planerbot, без новых exclusions. Новые RSVP,
   campaign, notice и observer paths — 100%. Ruff и mypy прошли.
-- Frontend: Vitest 4.1.11, 104 tests; 99.61% lines / 93.45% branches для
+- Frontend: Vitest 4.1.11, 105 tests; 99.61% lines / 93.45% branches для
   всего src (существующие exclusions test helpers/declarations). ESLint,
   Steiger, TypeScript, verification build и повторная API-генерация прошли.
-- Cypress 15.21.1: 87 tests, 58 acceptance IDs, все прошли; новые RSVP-04/05
+- Cypress 15.21.1: 88 tests, 59 acceptance IDs; новые FORM-10, RSVP-04/05
   вместе с существующей acceptance матрицей;
   screenshots на 390×844 и 1280×844, проверка вертикального layout списка.
   Browser tests используют stub API. Backend integration отдельно проходит
-  настоящий dispatcher → PostgreSQL → worker → TelegramGateway → mock session,
-  включая повтор Update без двойной отправки; это не live Telegram приёмка.
+  настоящий HTTP handler → PostgreSQL → worker → TelegramGateway → mock session,
+  включая повтор POST с тем же ключом и оба значения галочки; это не live Telegram приёмка.
 
 Проверены admin/creator/обычный участник, потеря прав и отмена во время lookup,
 голос во время membership call, page cursor, timeout/cancellation, /stop/выход,
-pending → approve, все три источника, одновременное создание и rollback intent.
+отсутствие рассылки после approve без галочки, одновременное создание и rollback intent.
 Реальных сообщений не отправляли, VPS/production не изменяли.
 
 Ограничения API сверены с [Telegram Bot API](https://core.telegram.org/bots/api#getchatmember).

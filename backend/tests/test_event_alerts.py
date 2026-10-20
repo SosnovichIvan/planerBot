@@ -31,7 +31,7 @@ async def audience(engine):
 
 @pytest.mark.parametrize("source", ["form", "bot", "message"])
 @pytest.mark.parametrize("notify", [False, True])
-async def test_automatic_invitation_is_atomic_once_for_all_sources(engine, source, notify):
+async def test_invitation_requires_explicit_intent_and_is_atomic_once(engine, source, notify):
     service, _, _, rsvp = await audience(engine)
     key = uuid4()
     for _ in range(2):
@@ -39,16 +39,20 @@ async def test_automatic_invitation_is_atomic_once_for_all_sources(engine, sourc
             A, 42, draft(notify_members=notify), "UTC", key, source=source
         )
     async with rsvp.sessions() as session:
-        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 1
-        assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == 1
-        assert await session.get(PersonalNotice, (invitation_id(event.id), 43))
+        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == int(
+            notify
+        )
+        assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == int(notify)
+        assert bool(await session.get(PersonalNotice, (invitation_id(event.id), 43))) == notify
     await service.change(42, A, event.id, 1, data=draft(title="Другое название"))
     async with rsvp.sessions() as session:
-        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 1
+        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == int(
+            notify
+        )
 
 
 @pytest.mark.parametrize("activate", ["approve", "import"])
-async def test_pending_event_invites_only_on_activation(engine, activate):
+async def test_activation_without_checkbox_does_not_send_invitations(engine, activate):
     service, _, _, rsvp = await audience(engine)
     event = await service.events.create(
         A, 42, draft(), "UTC", uuid4(), status="pending", source="message", source_date=STAMP
@@ -70,13 +74,14 @@ async def test_pending_event_invites_only_on_activation(engine, activate):
             source_date=STAMP + timedelta(minutes=1),
         )
     async with rsvp.sessions() as session:
-        assert await session.get(PersonalNotice, (invitation_id(event.id), 43))
+        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 0
+        assert await session.get(PersonalNotice, (invitation_id(event.id), 43)) is None
 
 
 @pytest.mark.parametrize("outcome", ["sent", "stop", "left", "cancelled", "sender_left"])
 async def test_new_event_private_delivery_rechecks_recipient_not_former_admin(engine, outcome):
     service, _, roles, rsvp = await audience(engine)
-    event = await service.create(42, A, draft(), uuid4())
+    event = await service.create(42, A, draft(notify_members=True), uuid4())
     if outcome == "stop":
         await rsvp.contact(43, False)
     elif outcome == "left":
@@ -205,30 +210,40 @@ async def test_observed_chat_messages_register_participants_without_opting_them_
         assert (await session.get(CalendarParticipant, (A, 42))).name == "Новое имя"
 
 
-async def test_dispatcher_import_to_database_worker_and_telegram_adapter_is_once(engine):
+@pytest.mark.parametrize("notify", [False, True])
+async def test_http_creation_intent_to_database_worker_and_telegram_adapter_is_once(engine, notify):
     from aiogram.methods import SendMessage
     from planerbot.telegram import TelegramGateway
 
-    service, gateway, _, rsvp = await audience(engine)
+    service, _, _, _ = await audience(engine)
     bot = bot_stub()
-    dispatcher = create_dispatcher(service.chats, gateway, service, rsvp)
-    payload = message_update(
-        "#событие\nНазвание: Приглашение\nДата: 2026-10-20\nМесто: Парк"
-    ).model_dump(mode="json", by_alias=True, exclude_none=True)
-    payload["message"]["chat"]["id"] = A
-    payload["message"]["entities"] = []
-    for _ in range(2):
-        await dispatcher.feed_update(bot, Update.model_validate(payload))
+    app = create_app(
+        Settings(bot_token=TOKEN),
+        access=service.access,
+        engine=engine,
+        bot=bot,
+        event_service=service,
+    )
+    async with AsyncClient(transport=ASGITransport(app), base_url="http://test") as client:
+        headers = {"Authorization": f"tma {signed()}", "Idempotency-Key": str(uuid4())}
+        for _ in range(2):
+            response = await client.post(
+                f"/api/chats/{A}/events",
+                headers=headers,
+                json=draft(title="Приглашение", notify_members=notify).model_dump(mode="json"),
+            )
+            assert response.status_code == 200
     delivery = NoticeDelivery(engine, service.access, TelegramGateway(bot))
-    assert await delivery.once()  # observer records author 42, no private consent
-    assert await delivery.once()  # consenting member 43
+    assert await delivery.once() == notify
     assert not await delivery.once()
     sent = [
         call.args[1]
         for call in bot.session.call_args_list
         if isinstance(call.args[1], SendMessage) and call.args[1].chat_id == 43
     ]
-    assert len(sent) == 1
+    assert len(sent) == int(notify)
+    if not notify:
+        return
     assert "Приглашение" in sent[0].text
     assert "Новое событие" in sent[0].text
     assert (
@@ -378,8 +393,8 @@ async def test_concurrent_creation_commits_only_one_invitation(engine):
     service, _, _, rsvp = await audience(engine)
     key = uuid4()
     left, right = await asyncio.gather(
-        service.create(42, A, draft(), key),
-        service.create(42, A, draft(), key),
+        service.create(42, A, draft(notify_members=True), key),
+        service.create(42, A, draft(notify_members=True), key),
     )
     assert left.id == right.id
     async with rsvp.sessions() as session:
@@ -396,11 +411,22 @@ async def test_failed_invitation_intent_rolls_back_event_and_retry_can_succeed(e
     key = uuid4()
     with patch("planerbot.event_repository.enqueue_invitation", side_effect=RuntimeError):
         with pytest.raises(RuntimeError):
-            await service.create(42, A, draft(), key)
+            await service.create(42, A, draft(notify_members=True), key)
     async with rsvp.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(Event)) == 0
         assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 0
         assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == 0
-    await service.create(42, A, draft(), key)
+    await service.create(42, A, draft(notify_members=True), key)
     async with rsvp.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == 1
+
+
+@pytest.mark.parametrize("notify", [False, True])
+async def test_retry_cannot_change_the_original_invitation_choice(engine, notify):
+    service, _, _, rsvp = await audience(engine)
+    key = uuid4()
+    await service.create(42, A, draft(notify_members=notify), key)
+    with pytest.raises(Conflict):
+        await service.create(42, A, draft(notify_members=not notify), key)
+    async with rsvp.sessions() as session:
+        assert await session.scalar(select(func.count()).select_from(PersonalNotice)) == int(notify)

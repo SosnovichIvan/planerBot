@@ -66,15 +66,13 @@ async def test_noop_and_notification_intent_are_separate_from_event_content(engi
     assert same.version == 1
     async with service.events.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(EventRevision)) == 0
-        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 1
+        assert await session.scalar(select(func.count()).select_from(MessageCampaign)) == 0
     changed = await service.change(
         42, A, event.id, 1, data=draft(place="Парк", notify_members=True)
     )
     async with service.events.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(EventRevision)) == 1
-        campaign = await session.scalar(
-            select(MessageCampaign).where(MessageCampaign.body.contains("изменилось"))
-        )
+        campaign = await session.scalar(select(MessageCampaign))
         assert campaign.audience == "all" and "изменилось" in campaign.body
     with pytest.raises(Conflict):
         await service.change(42, A, event.id, 1, data=draft(place="Парк", notify_members=True))

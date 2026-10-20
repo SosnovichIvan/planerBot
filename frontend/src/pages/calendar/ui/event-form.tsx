@@ -114,8 +114,7 @@ export function EventForm({ chats, raw, event, initialChatId, initialTopicId, on
         <Field>Ссылка подключения<Input type="url" name="online_url" maxLength={400} defaultValue={data?.online_url} /></Field>
         <Field>Описание<TextArea className="min-h-24" name="description" maxLength={1200} defaultValue={data?.description} /></Field>
         <Field>Теги через пробел<Input name="tags" defaultValue={data?.tags?.join(' ')} placeholder="#встреча #команда" /></Field>
-        {event ? <Field className="flex items-start gap-3"><Checkbox className="mt-1 size-5 shrink-0" name="notify_members" />Уведомить участников об изменениях</Field> :
-          <p className="text-sm text-muted">Уведомление о новом событии отправится автоматически известным участникам календаря, разрешившим личные сообщения боту.</p>}
+        <Field className="flex items-start gap-3"><Checkbox className="mt-1 size-5 shrink-0" name="notify_members" defaultChecked={!event} />{event ? 'Уведомить участников об изменениях' : 'Отправить событие в личку участникам календаря, разрешившим сообщения'}</Field>
       </fieldset>
       {error && <p ref={errorRef} tabIndex={-1} role="alert" className="rounded-xl border border-attention/50 bg-attention/10 p-3 text-sm font-medium text-attention outline-none">{error}</p>}
       {notice && <p role="status" className="text-sm">{notice}</p>}

@@ -145,7 +145,6 @@ class EventRepository:
                 or event.source != source
             ):
                 raise Conflict("Ключ запроса уже использован")
-            was_active = new_id is None and event.status == "active"
             changed = new_id is not None
             if new_id is None:
                 if source == "form":
@@ -171,7 +170,7 @@ class EventRepository:
             await session.flush()
             if changed:
                 await enqueue(session, event)
-            if changed and not was_active and event.status == "active":
+            if new_id is not None and data.notify_members and event.status == "active":
                 await enqueue_invitation(session, event)
             return await self.read(session, chat_id, event_id)
 
@@ -226,8 +225,6 @@ class EventRepository:
             event.editor_id = user_id
             await session.flush()
             await enqueue(session, event)
-            if action == "approve":
-                await enqueue_invitation(session, event)
             if data is not None and data.notify_members and event.status == "active":
                 from uuid import NAMESPACE_URL, uuid5
 
