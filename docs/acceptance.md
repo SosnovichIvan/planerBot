@@ -82,6 +82,7 @@
 | Сеть/выпуск | Proxy без fallback, env validation, release guards, backup/restore в изолированном smoke | test_network.py, test_deployment.py, deploy/smoke-test.sh |
 | Upgrade | Пустая и заполненная схема, сохранность событий/публикаций/RSVP | scripts/check_migrations.py |
 | Техподдержка | /support, deep link, ответ на приглашение, приватность/контекст, текст/Unicode, очередь, лимит и повторы, lease, Telegram errors | test_support_bot.py, test_support.py, test_deployment.py |
+| Ответы поддержки | Ник владельца не показывается, reply только настроенного владельца на карточку своего бота, БД определяет адресата, шаблон/ник/имя, replay/гонки, lease/429/unknown/отказ, старые карточки и prompts, миграция 0006→0007 | test_support_reply_bot.py, test_support_replies.py, scripts/check_migrations.py |
 
 ## Ручная приёмка реальных Telegram-клиентов
 
