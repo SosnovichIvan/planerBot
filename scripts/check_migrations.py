@@ -80,7 +80,12 @@ async def verify() -> None:
             )
             == "pending"
         )
-        assert await connection.scalar(text("SELECT count(*) FROM support_tickets")) == 0
+        assert await connection.scalar(text("SELECT count(*) FROM support_tickets")) == 1
+        assert await connection.scalar(text("SELECT count(*) FROM support_replies")) == 0
+        assert (
+            await connection.scalar(text("SELECT body FROM support_tickets WHERE user_id=42"))
+            == "Existing support ticket"
+        )
         assert (
             await connection.scalar(
                 text(
@@ -173,6 +178,20 @@ async def seed_cancelled() -> None:
     await engine.dispose()
 
 
+async def seed_support() -> None:
+    engine = create_async_engine(url)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("""
+            INSERT INTO support_tickets(id,user_id,source_message_id,target_id,name,body,
+                created_at,status,next_attempt)
+            VALUES ('00000000-0000-4000-8000-000000000042',42,1,900,'Viewer',
+                'Existing support ticket',now(),'sent',now())
+        """)
+        )
+    await engine.dispose()
+
+
 alembic("downgrade", "base")
 alembic("upgrade", "head")
 alembic("check")
@@ -184,7 +203,9 @@ alembic("upgrade", "0003")
 asyncio.run(seed_response())
 alembic("upgrade", "0004")
 asyncio.run(seed_cancelled())
+alembic("upgrade", "0006")
+asyncio.run(seed_support())
 alembic("upgrade", "head")
 asyncio.run(verify())
 alembic("check")
-print("Empty upgrade and populated 0001 -> 0006 preserved data and added empty support queue")
+print("Empty upgrade and populated 0001 -> 0007 preserved data and added empty reply queue")

@@ -2,7 +2,7 @@
 
 import hashlib
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, literal, select
 from sqlalchemy.dialects.postgresql import insert
@@ -16,6 +16,21 @@ from planerbot.models import (
     MessageCampaign,
     PersonalNotice,
 )
+
+
+def invitation_id(event_id: UUID) -> UUID:
+    return uuid5(NAMESPACE_URL, f"invitation:{event_id}")
+
+
+async def enqueue_invitation(session: AsyncSession, event: Event) -> None:
+    await enqueue_campaign(
+        session,
+        event,
+        event.creator_id,
+        invitation_id(event.id),
+        "all",
+        "Новое событие. Отметьте, сможете ли вы прийти.",
+    )
 
 
 async def enqueue_campaign(

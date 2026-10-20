@@ -36,7 +36,14 @@ from planerbot.events import EventService
 from planerbot.network import create_bot
 from planerbot.publications import PublicationRepository
 from planerbot.repository import ChatRepository
-from planerbot.rsvp import CampaignInput, CampaignView, EventDetails, ResponseInput, RsvpService
+from planerbot.rsvp import (
+    CampaignInput,
+    CampaignView,
+    EventDetails,
+    ResponseInput,
+    RsvpService,
+    UnansweredView,
+)
 from planerbot.telegram import TelegramGateway
 
 
@@ -169,6 +176,15 @@ def create_app(
         chat_id: int, event_id: UUID, data: ResponseInput, user: Annotated[Viewer, Depends(viewer)]
     ) -> EventDetails:
         return await rsvp_service().detail(user, chat_id, event_id, data.answer)
+
+    @app.get("/api/chats/{chat_id}/events/{event_id}/unanswered", response_model=UnansweredView)
+    async def unanswered_participants(
+        chat_id: int,
+        event_id: UUID,
+        user: Annotated[Viewer, Depends(viewer)],
+        after: Annotated[int, Query(ge=0, le=2**52 - 1)] = 0,
+    ) -> UnansweredView:
+        return await rsvp_service().unanswered(user, chat_id, event_id, after)
 
     @app.post("/api/chats/{chat_id}/events/{event_id}/campaigns", response_model=CampaignView)
     async def send_campaign(

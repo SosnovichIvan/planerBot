@@ -22,8 +22,8 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.mocked(loadChats).mockReset();
   vi.mocked(loadEvents).mockReset().mockResolvedValue({ events: [], has_more: false, has_more_removals: false });
-  vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false });
-  vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false });
+  vi.mocked(loadEventDetails).mockReset().mockResolvedValue({ event: calendarEvent, counts: null, personal_messages_enabled: false, can_view_unanswered: false });
+  vi.mocked(respondEvent).mockReset().mockResolvedValue({ event: { ...calendarEvent, my_response: 'yes' }, counts: { yes: 1, no: 0, unanswered: 0 }, personal_messages_enabled: false, can_view_unanswered: false });
   vi.spyOn(telegram, 'initData').mockReturnValue('signed');
 });
 

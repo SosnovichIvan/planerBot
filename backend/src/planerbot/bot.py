@@ -49,6 +49,12 @@ def create_dispatcher(
                 event.new_chat_member.status, getattr(event.new_chat_member, "is_member", False)
             ).present:
                 await rsvp.remove(event.chat.id, event.new_chat_member.user.id)
+            elif not event.new_chat_member.user.is_bot and await store.get(event.chat.id):
+                await rsvp.observe(
+                    event.chat.id,
+                    event.new_chat_member.user.id,
+                    event.new_chat_member.user.first_name,
+                )
 
         @router.message(F.chat.type == "private", F.write_access_allowed)
         async def write_access(message: Message) -> None:
@@ -92,6 +98,14 @@ def create_dispatcher(
         if isinstance(message, Message) and message.chat.type in {"group", "supergroup"}:
             chat = await store.get(message.chat.id)
             if chat is not None:
+                if (
+                    rsvp is not None
+                    and message.from_user is not None
+                    and not message.from_user.is_bot
+                ):
+                    await rsvp.observe(
+                        message.chat.id, message.from_user.id, message.from_user.first_name
+                    )
                 thread = (message.message_thread_id or 1) if message.chat.is_forum else 1
                 created, edited = message.forum_topic_created, message.forum_topic_edited
                 name = created.name if created else edited.name if edited else None

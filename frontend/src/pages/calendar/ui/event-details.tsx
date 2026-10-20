@@ -10,6 +10,7 @@ import { formatDate } from '../../../shared/lib/date';
 import { revealControl } from '../../../shared/lib/scroll';
 import { TextLink } from '../../../shared/ui/text-link';
 import { CampaignDelivery } from './campaign-delivery';
+import { UnansweredParticipants } from './unanswered-participants';
 
 const labels: Record<Answer, string> = { yes: 'Приду', no: 'Не приду', unanswered: 'Не проголосовали' };
 type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; data: Details };
@@ -23,6 +24,7 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [editing, setEditing] = useState(false);
+  const [showUnanswered, setShowUnanswered] = useState(false);
   const [audience, setAudience] = useState<Answer | null>(null);
   const [text, setText] = useState('');
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -98,11 +100,13 @@ export function EventDetails({ raw, chatId, eventId, onClose, onChanged, chats =
       </> : <p className="mt-5 font-semibold">{event.status === 'cancelled' ? 'Событие отменено' : 'Событие ожидает подтверждения'}</p>}
       {!data.counts ? <p className="mt-5 text-sm text-muted">Результаты станут доступны после вашего ответа — это правило действует и для администраторов.</p> : <section className="mt-6" aria-label="Ответы участников календаря">
         <h3 className="font-semibold">Участники календаря</h3>
-        <p className="mt-2 text-xs text-muted">Это участники, открывшие календарь, а не полный состав Telegram-чата.</p>
+        <p className="mt-2 text-xs text-muted">Это известные боту участники календаря, а не полный состав Telegram-чата.</p>
         <div className="mt-3 flex flex-wrap gap-2">{(['yes', 'no', 'unanswered'] as const).map((group) => event.can_manage && event.status === 'active' ?
           <Button variant="secondary" key={group} disabled={busy || uncertain} onClick={() => { setAudience(group); setCampaign(null); setNotice(''); }}>{labels[group]}: {data.counts![group]}</Button> :
           <p className="rounded-xl border border-line p-3 text-sm" key={group}>{labels[group]}: {data.counts![group]}</p>)}</div>
       </section>}
+      {data.can_view_unanswered && event.status === 'active' && <Button className="mt-4" onClick={() => setShowUnanswered(true)}>Список непроголосовавших</Button>}
+      {showUnanswered && data.can_view_unanswered && <UnansweredParticipants key={event.id} raw={raw} chatId={event.chat_id} eventId={event.id} onClose={() => setShowUnanswered(false)} />}
       {audience && event.can_manage && data.counts && <Modal title={`Сообщение: ${labels[audience]}`} closeLabel="Закрыть форму отправки" busy={busy} onClose={closeCampaign} fullHeight>
         <form className="event-form" onSubmit={(e) => { e.preventDefault(); if (lock.current) return;
         if (!submitted.current && !window.confirm(`Отправить личное сообщение группе «${labels[audience]}»? Получат только участники календаря с разрешёнными сообщениями.`)) return;

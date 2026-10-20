@@ -73,6 +73,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chats/{chat_id}/events/{event_id}/unanswered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unanswered Participants */
+        get: operations["unanswered_participants_api_chats__chat_id__events__event_id__unanswered_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chats/{chat_id}/events/{event_id}/campaigns": {
         parameters: {
             query?: never;
@@ -383,6 +400,11 @@ export interface components {
             counts?: components["schemas"]["ResponseCounts"] | null;
             /** Personal Messages Enabled */
             personal_messages_enabled: boolean;
+            /**
+             * Can View Unanswered
+             * @default false
+             */
+            can_view_unanswered: boolean;
         };
         /** EventEdit */
         EventEdit: {
@@ -581,6 +603,13 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ParticipantView */
+        ParticipantView: {
+            /** User Id */
+            user_id: string;
+            /** Name */
+            name: string;
+        };
         /** ResponseCounts */
         ResponseCounts: {
             /**
@@ -626,6 +655,13 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+        };
+        /** UnansweredView */
+        UnansweredView: {
+            /** Participants */
+            participants: components["schemas"]["ParticipantView"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -816,6 +852,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unanswered_participants_api_chats__chat_id__events__event_id__unanswered_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                chat_id: number;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnansweredView"];
                 };
             };
             /** @description Validation Error */
