@@ -50,6 +50,34 @@ class SupportTicket(Base):
     )
 
 
+class SupportReply(Base):
+    __tablename__ = "support_replies"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    ticket_id: Mapped[UUID] = mapped_column(ForeignKey("support_tickets.id", ondelete="CASCADE"))
+    sender_id: Mapped[int] = mapped_column(BigInteger)
+    source_message_id: Mapped[int] = mapped_column(BigInteger)
+    body: Mapped[str] = mapped_column(String(3000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16))
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    lease: Mapped[UUID | None]
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("sender_id", "source_message_id", name="support_reply_source_unique"),
+        CheckConstraint(
+            "sender_id > 0 AND source_message_id > 0", name="support_reply_private_ids"
+        ),
+        CheckConstraint("char_length(body) BETWEEN 1 AND 3000", name="support_reply_body_length"),
+        CheckConstraint("attempts >= 0", name="support_reply_attempts"),
+        CheckConstraint(
+            "status IN ('pending','sending','sent','failed','unknown')", name="support_reply_status"
+        ),
+        Index("support_replies_pending", "status", "next_attempt"),
+        Index("support_replies_ticket", "ticket_id"),
+    )
+
+
 class Chat(Base):
     __tablename__ = "chats"
 

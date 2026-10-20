@@ -12,6 +12,7 @@ from planerbot.access import AccessUnavailable, Membership
 from planerbot.event_contracts import EventView
 from planerbot.publications import DeliveryRejected, DeliveryUnknown
 from planerbot.support import SupportJob
+from planerbot.support_replies import SupportReplyJob, reply_text
 
 
 class TelegramGateway:
@@ -24,7 +25,9 @@ class TelegramGateway:
         contact = f"@{job.username}" if job.username else "ник не указан"
         text = (
             f"Техподдержка planerBot\nОбращение №{job.id.hex}\n"
-            f"Пользователь: {job.name}\nTelegram: {contact}\nID: {job.user_id}\n\n{job.body}"
+            f"Пользователь: {job.name}\nTelegram: {contact}\nID: {job.user_id}\n"
+            "Ответьте на это сообщение текстом — бот отправит ответ пользователю.\n\n"
+            f"{job.body}"
         )
         try:
             await self.bot.send_message(
@@ -47,6 +50,24 @@ class TelegramGateway:
         except (TimeoutError, TelegramAPIError) as exc:
             raise AccessUnavailable from exc
         return Membership(member.status, getattr(member, "is_member", False))
+
+    async def send_support_reply(self, job: SupportReplyJob) -> None:
+        from planerbot.notices import Deferred
+
+        try:
+            await self.bot.send_message(
+                chat_id=job.user_id,
+                text=reply_text(job),
+                parse_mode=None,
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+                request_timeout=10,
+            )
+        except TelegramRetryAfter as exc:
+            raise Deferred(exc.retry_after) from exc
+        except (TimeoutError, TelegramNetworkError, TelegramServerError) as exc:
+            raise DeliveryUnknown from exc
+        except TelegramAPIError as exc:
+            raise DeliveryRejected from exc
 
     async def send_personal(self, user_id: int, event: EventView, body: str) -> None:
         from planerbot.notices import Deferred

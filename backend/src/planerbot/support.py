@@ -8,13 +8,15 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from planerbot.models import SupportTicket
+from planerbot.models import SupportReply, SupportTicket
 from planerbot.notices import Deferred
 from planerbot.publications import DeliveryRejected, DeliveryUnknown
 
 logger = logging.getLogger(__name__)
+SUPPORT_UNAVAILABLE = "Приём обращений пока не настроен. Попробуйте позже: /support."
 
 
 class SupportError(ValueError):
@@ -45,7 +47,7 @@ class SupportService:
         self, user_id: int, message_id: int, name: str, username: str | None, body: str
     ) -> UUID:
         if not self.target_id:
-            raise SupportError("Приём обращений пока не настроен. Контакт: @ivanSVladimirovich.")
+            raise SupportError(SUPPORT_UNAVAILABLE)
         body = body.strip()
         if not body or len(body.encode("utf-16-le")) // 2 > 3000:
             raise SupportError("Отправьте описание проблемы текстом: от 1 до 3000 символов.")
@@ -86,6 +88,50 @@ class SupportService:
                 )
             )
             return ticket_id
+
+    async def reply(
+        self, sender_id: int, chat_id: int, message_id: int, ticket_id: UUID, body: str
+    ) -> UUID:
+        if not self.target_id or sender_id != self.target_id or chat_id != sender_id:
+            raise SupportError("Нет доступа к ответам техподдержки.")
+        body = body.strip()
+        if not body or len(body.encode("utf-16-le")) // 2 > 3000:
+            raise SupportError("Ответьте текстом: от 1 до 3000 символов.")
+        if message_id <= 0:
+            raise SupportError("Ответьте на карточку обращения в личке боту.")
+        now = datetime.now(UTC)
+        async with self.sessions.begin() as session:
+            ticket = await session.get(SupportTicket, ticket_id)
+            if ticket is None or ticket.target_id != sender_id:
+                raise SupportError("Обращение не найдено или недоступно для ответа.")
+            reply_id = await session.scalar(
+                insert(SupportReply)
+                .values(
+                    id=uuid4(),
+                    ticket_id=ticket_id,
+                    sender_id=sender_id,
+                    source_message_id=message_id,
+                    body=body,
+                    created_at=now,
+                    status="pending",
+                    next_attempt=now,
+                )
+                .on_conflict_do_nothing(index_elements=["sender_id", "source_message_id"])
+                .returning(SupportReply.id)
+            )
+            if reply_id is not None:
+                return reply_id
+            prior = (
+                await session.scalars(
+                    select(SupportReply).where(
+                        SupportReply.sender_id == sender_id,
+                        SupportReply.source_message_id == message_id,
+                    )
+                )
+            ).one()
+            if prior.ticket_id != ticket_id or prior.body != body:
+                raise SupportError("Это сообщение уже использовано для другого ответа.")
+            return prior.id
 
 
 class SupportDelivery:
