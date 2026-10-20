@@ -1,5 +1,6 @@
 """Personal responses and calendar audience, never trusted for authorization."""
 
+import asyncio
 from typing import Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -8,7 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from planerbot.access import AccessDenied, ChatAccess
+from planerbot.access import AccessDenied, AccessibleChat, AccessUnavailable, ChatAccess
 from planerbot.auth import Viewer
 from planerbot.campaigns import enqueue_campaign
 from planerbot.event_contracts import Conflict, EventView, MissingEvent
@@ -47,6 +48,17 @@ class EventDetails(BaseModel):
     event: EventView
     counts: ResponseCounts | None = None
     personal_messages_enabled: bool
+    can_view_unanswered: bool = False
+
+
+class ParticipantView(BaseModel):
+    user_id: str
+    name: str
+
+
+class UnansweredView(BaseModel):
+    participants: list[ParticipantView]
+    next_cursor: str | None = None
 
 
 class CampaignView(BaseModel):
@@ -58,6 +70,99 @@ class RsvpService:
     def __init__(self, engine: AsyncEngine, access: ChatAccess):
         self.sessions = async_sessionmaker(engine, expire_on_commit=False)
         self.access = access
+
+    async def observe(self, chat_id: int, user_id: int, name: str) -> None:
+        async with self.sessions.begin() as session:
+            await session.execute(
+                insert(CalendarParticipant)
+                .values(chat_id=chat_id, user_id=user_id, name=name)
+                .on_conflict_do_update(
+                    index_elements=[CalendarParticipant.chat_id, CalendarParticipant.user_id],
+                    set_={"name": name},
+                )
+            )
+
+    async def unanswered(
+        self, user: Viewer, chat_id: int, event_id: UUID, after: int = 0
+    ) -> UnansweredView:
+        target = await self.access.authorize(user.id, chat_id)
+        async with self.sessions() as session:
+            event = await session.scalar(
+                select(Event).where(Event.id == event_id, Event.chat_id == chat_id)
+            )
+            self.roster_access(event, target, user.id)
+            rows = (
+                await session.execute(
+                    select(CalendarParticipant.user_id, CalendarParticipant.name)
+                    .where(
+                        CalendarParticipant.chat_id == chat_id,
+                        CalendarParticipant.user_id > after,
+                        ~select(EventResponse.user_id)
+                        .where(
+                            EventResponse.event_id == event_id,
+                            EventResponse.user_id == CalendarParticipant.user_id,
+                        )
+                        .exists(),
+                    )
+                    .order_by(CalendarParticipant.user_id)
+                    .limit(51)
+                )
+            ).all()
+        # No transaction is held while checking the bounded page against Telegram.
+        semaphore = asyncio.Semaphore(4)
+
+        async def present(user_id: int) -> bool:
+            async with semaphore:
+                return (await self.access.telegram.membership(chat_id, user_id)).present
+
+        page = rows[:50]
+        tasks = [asyncio.create_task(present(row.user_id)) for row in page]
+        try:
+            async with asyncio.timeout(15):
+                current = await asyncio.gather(*tasks)
+        except TimeoutError as exc:
+            raise AccessUnavailable from exc
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        # Do not return someone who voted while membership calls were running.
+        target = await self.access.authorize(user.id, chat_id)
+        async with self.sessions() as session:
+            latest = await session.scalar(
+                select(Event).where(Event.id == event_id, Event.chat_id == chat_id)
+            )
+            self.roster_access(latest, target, user.id)
+            answered = set(
+                (
+                    await session.scalars(
+                        select(EventResponse.user_id).where(
+                            EventResponse.event_id == event_id,
+                            EventResponse.user_id.in_([row.user_id for row in page]),
+                        )
+                    )
+                ).all()
+            )
+        return UnansweredView(
+            participants=[
+                ParticipantView(user_id=str(row.user_id), name=row.name)
+                for row, member in zip(page, current, strict=True)
+                if member and row.user_id not in answered
+            ],
+            next_cursor=str(page[-1].user_id) if len(rows) > 50 else None,
+        )
+
+    @staticmethod
+    def roster_access(event: Event | None, target: AccessibleChat, user_id: int) -> None:
+        if event is None:
+            raise MissingEvent
+        if not (target.can_manage or event.creator_id == user_id) or not any(
+            t.thread_id == event.topic_id and t.enabled for t in target.chat.topics
+        ):
+            raise AccessDenied
+        if event.status != "active":
+            raise Conflict("Список доступен только для активного события")
 
     async def contact(self, user_id: int, enabled: bool) -> None:
         async with self.sessions.begin() as session:
@@ -182,6 +287,9 @@ class RsvpService:
                 event=view,
                 counts=counts,
                 personal_messages_enabled=bool(contact and contact.enabled),
+                can_view_unanswered=event.status == "active"
+                and (target.can_manage or event.creator_id == user.id)
+                and any(t.thread_id == event.topic_id and t.enabled for t in target.chat.topics),
             )
 
     async def campaign(

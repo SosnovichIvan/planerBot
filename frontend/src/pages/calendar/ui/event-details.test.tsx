@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, eventAction, loadEventDetails, respondEvent, sendCampaign } from '../../../shared/api';
+import { ApiFailure, campaignStatus, disablePersonalMessages, editEvent, eventAction, loadEventDetails, loadUnanswered, respondEvent, sendCampaign } from '../../../shared/api';
 import * as telegram from '../../../shared/telegram';
 import type { EventDetails as Details } from '../../../shared/api';
 import { EventDetails } from './event-details';
 import { chats, event } from './fixtures.test-data';
 
-vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), eventAction: vi.fn(), editEvent: vi.fn(), loadEventDetails: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
-const details = (admin = true, answered = false): Details => ({ event: { ...event, can_manage: admin, my_response: answered ? 'yes' : 'unanswered' }, counts: answered ? { yes: 1, no: 1, unanswered: 2 } : null, personal_messages_enabled: false });
+vi.mock('../../../shared/api', async (original) => ({ ...await original<typeof import('../../../shared/api')>(), eventAction: vi.fn(), editEvent: vi.fn(), loadEventDetails: vi.fn(), loadUnanswered: vi.fn(), respondEvent: vi.fn(), sendCampaign: vi.fn(), campaignStatus: vi.fn(), disablePersonalMessages: vi.fn() }));
+const details = (admin = true, answered = false): Details => ({ event: { ...event, can_manage: admin, my_response: answered ? 'yes' : 'unanswered' }, counts: answered ? { yes: 1, no: 1, unanswered: 2 } : null, personal_messages_enabled: false, can_view_unanswered: admin });
 function show(onClose = vi.fn(), onChanged = vi.fn()) { return render(<EventDetails raw="signed" chatId={event.chat_id} eventId={event.id} onClose={onClose} onChanged={onChanged} />); }
 
 beforeEach(() => {
@@ -19,6 +19,18 @@ beforeEach(() => {
   vi.mocked(campaignStatus).mockReset().mockResolvedValue({ id: 'campaign', statuses: { sent: 1, pending: 2, unknown: 1 } });
   vi.mocked(disablePersonalMessages).mockReset().mockResolvedValue();
   vi.mocked(eventAction).mockReset().mockResolvedValue();
+  vi.mocked(loadUnanswered).mockReset().mockResolvedValue({ participants: [{ user_id: '43', name: 'Мария' }], next_cursor: null });
+});
+
+it('lets the author inspect the list without management permissions or voting', async () => {
+  vi.mocked(loadEventDetails).mockResolvedValue({ ...details(false), can_view_unanswered: true });
+  show();
+  await userEvent.click(await screen.findByRole('button', { name: 'Список непроголосовавших' }));
+  expect(await screen.findByText('Мария')).toBeVisible();
+  expect(screen.getAllByRole('dialog')).toHaveLength(2);
+  expect(screen.queryByRole('button', { name: 'Удалить событие' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Закрыть список участников' }));
+  expect(screen.getAllByRole('dialog')).toHaveLength(1);
 });
 
 it('requires confirmation to remove from the card, keeps it on error, closes after API success', async () => {

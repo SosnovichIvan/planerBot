@@ -10,6 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from planerbot.access import AccessDenied, AccessUnavailable, ChatAccess
+from planerbot.campaigns import invitation_id
 from planerbot.event_contracts import EventView
 from planerbot.event_repository import EventRepository
 from planerbot.models import (
@@ -105,7 +106,8 @@ class NoticeDelivery:
 
     async def eligible(self, job: NoticeJob) -> bool:
         chat_id = int(job.event.chat_id)
-        await self.access.authorize(job.sender_id, chat_id, manage=True)
+        if job.campaign_id != invitation_id(job.event.id):
+            await self.access.authorize(job.sender_id, chat_id, manage=True)
         target = await self.access.authorize(job.user_id, chat_id)
         if not any(
             t.thread_id == job.event.data.topic_id and t.enabled for t in target.chat.topics

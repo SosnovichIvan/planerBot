@@ -1,7 +1,19 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { ApiFailure, loadChats, loadEvents, createEvent, editEvent, eventAction, configureChat, errorText } from './index';
 import type { CalendarEvent, EventDraft } from './index';
-import { campaignStatus, disablePersonalMessages, loadEventDetails, respondEvent, sendCampaign } from './index';
+import { campaignStatus, disablePersonalMessages, loadEventDetails, loadUnanswered, respondEvent, sendCampaign } from './index';
+
+it('loads a scoped unanswered page with authorization, cursor and cancellation', async () => {
+  const fetch = vi.fn().mockImplementation(() => Promise.resolve(Response.json({ participants: [], next_cursor: null })));
+  vi.stubGlobal('fetch', fetch);
+  const controller = new AbortController();
+  await loadUnanswered('signed', '-100100', 'event', '43', controller.signal);
+  const request = fetch.mock.calls[0][0] as Request;
+  expect(request.url).toContain('/api/chats/-100100/events/event/unanswered?after=43');
+  expect(request.headers.get('Authorization')).toBe('tma signed');
+  await loadUnanswered('signed', '-100100', 'event');
+  expect((fetch.mock.calls[1][0] as Request).url).toContain('after=0');
+});
 
 afterEach(() => { vi.unstubAllGlobals(); });
 

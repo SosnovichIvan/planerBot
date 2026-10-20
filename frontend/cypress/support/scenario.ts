@@ -60,7 +60,7 @@ export function scenario(values: Partial<Scenario> = {}): Scenario {
     const [, id, command] = /^events\/([^/]+)(?:\/(.*))?$/.exec(action) ?? [];
     const event = state.events.find((item) => item.id === id && item.chat_id === chatId);
     if (!event) { send({ detail: 'Событие не найдено.' }, 404); return; }
-    const details = () => ({ event, counts: event.my_response === 'unanswered' ? null : { yes: 3, no: 1, unanswered: 2 }, personal_messages_enabled: state.contact });
+    const details = () => ({ event, counts: event.my_response === 'unanswered' ? null : { yes: 3, no: 1, unanswered: 2 }, personal_messages_enabled: state.contact, can_view_unanswered: event.can_manage });
     if (!command && req.method === 'GET') { event.has_updates = false; send(details()); return; }
     if (!command && req.method === 'PUT') {
       const { version, ...data } = req.body as Draft & { version: number };
