@@ -296,6 +296,83 @@
         }
       }
     },
+    "/api/chats/{chat_id}/events/{event_id}/unanswered": {
+      "get": {
+        "summary": "Unanswered Participants",
+        "operationId": "unanswered_participants_api_chats__chat_id__events__event_id__unanswered_get",
+        "parameters": [
+          {
+            "name": "chat_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Chat Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 4503599627370495,
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnansweredView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chats/{chat_id}/events/{event_id}/campaigns": {
       "post": {
         "summary": "Send Campaign",
@@ -1299,6 +1376,11 @@
           "personal_messages_enabled": {
             "type": "boolean",
             "title": "Personal Messages Enabled"
+          },
+          "can_view_unanswered": {
+            "type": "boolean",
+            "title": "Can View Unanswered",
+            "default": false
           }
         },
         "type": "object",
@@ -1740,6 +1822,24 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "ParticipantView": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "ParticipantView"
+      },
       "ResponseCounts": {
         "properties": {
           "yes": {
@@ -1813,6 +1913,33 @@
           "title"
         ],
         "title": "TopicResponse"
+      },
+      "UnansweredView": {
+        "properties": {
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantView"
+            },
+            "type": "array",
+            "title": "Participants"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participants"
+        ],
+        "title": "UnansweredView"
       },
       "ValidationError": {
         "properties": {

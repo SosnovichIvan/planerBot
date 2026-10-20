@@ -15,13 +15,14 @@ from planerbot.event_contracts import Conflict, MissingEvent
 from planerbot.models import (
     Event,
     EventResponse,
+    MessageCampaign,
     PersonalNotice,
     Topic,
 )
 from planerbot.notices import Deferred, NoticeDelivery
 from planerbot.publications import DeliveryRejected, DeliveryUnknown
 from planerbot.rsvp import CampaignInput, RsvpService
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 
 async def setup(engine):
@@ -32,6 +33,10 @@ async def setup(engine):
     await rsvp.visit(admin)
     await rsvp.visit(member)
     event = await service.create(42, A, draft(), uuid4())
+    # Manual-campaign tests start after the automatic invitation has been handled.
+    async with rsvp.sessions.begin() as session:
+        await session.execute(delete(PersonalNotice))
+        await session.execute(delete(MessageCampaign))
     return service, gateway, roles, rsvp, admin, member, event
 
 

@@ -9,6 +9,13 @@ export type ChatSettings = components['schemas']['ChatSettingsInput'];
 export type EventDetails = components['schemas']['EventDetails'];
 export type Answer = components['schemas']['ResponseInput']['answer'];
 export type Campaign = components['schemas']['CampaignView'];
+export type UnansweredPage = components['schemas']['UnansweredView'];
+
+export async function loadUnanswered(raw: string, chatId: string, eventId: string, after?: string, signal?: AbortSignal) {
+  return checked(await client(raw).GET('/api/chats/{chat_id}/events/{event_id}/unanswered', {
+    params: { path: { chat_id: Number(chatId), event_id: eventId }, query: { after: after ? Number(after) : 0 } }, signal,
+  }));
+}
 
 export class ApiFailure extends Error {
   constructor(public readonly status: number, message = 'Calendar request failed') { super(message); }

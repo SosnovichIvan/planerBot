@@ -6,7 +6,7 @@ from sqlalchemy import Date, and_, case, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from planerbot.campaigns import enqueue_campaign
+from planerbot.campaigns import enqueue_campaign, enqueue_invitation
 from planerbot.event_contracts import Conflict, EventInput, EventsView, EventView, MissingEvent
 from planerbot.models import Chat, Event, EventRevision, Publication, Topic
 
@@ -145,6 +145,7 @@ class EventRepository:
                 or event.source != source
             ):
                 raise Conflict("Ключ запроса уже использован")
+            was_active = new_id is None and event.status == "active"
             changed = new_id is not None
             if new_id is None:
                 if source == "form":
@@ -170,17 +171,8 @@ class EventRepository:
             await session.flush()
             if changed:
                 await enqueue(session, event)
-            if new_id is not None and data.notify_members and status == "active":
-                from uuid import NAMESPACE_URL, uuid5
-
-                await enqueue_campaign(
-                    session,
-                    event,
-                    user_id,
-                    uuid5(NAMESPACE_URL, f"invitation:{event_id}"),
-                    "all",
-                    "Новое событие. Отметьте, сможете ли вы прийти.",
-                )
+            if changed and not was_active and event.status == "active":
+                await enqueue_invitation(session, event)
             return await self.read(session, chat_id, event_id)
 
     @staticmethod
@@ -234,6 +226,8 @@ class EventRepository:
             event.editor_id = user_id
             await session.flush()
             await enqueue(session, event)
+            if action == "approve":
+                await enqueue_invitation(session, event)
             if data is not None and data.notify_members and event.status == "active":
                 from uuid import NAMESPACE_URL, uuid5
 
